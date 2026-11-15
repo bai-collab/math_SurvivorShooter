@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>像素槍戰倖存者 | Pixel Gun Survivors</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js" defer></script>
+  <script src="src/pixel-art.js" defer></script>
+  <script src="src/audio.js" defer></script>
+  <script src="src/gamepad.js" defer></script>
+  <script src="src/runes.js" defer></script>
+  <script src="src/gear.js" defer></script>
+  <script src="src/weapons.js" defer></script>
+  <script src="src/renderer.js" defer></script>
+  <script src="src/game.js" defer></script>
+  <script src="src/ui.js" defer></script>
+  <script src="src/main.js" defer></script>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- 遊戲內 HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="xp-wrap">
+        <div id="xp-fill" class="xp-fill"></div>
+        <div id="level-text" class="level-badge">LV 1</div>
+      </div>
+      <div class="hud-row">
+        <div class="hp-wrap">
+          <div id="hp-fill" class="hp-fill"></div>
+          <div id="hp-text" class="hp-text">HP 100 / 100</div>
+        </div>
+        <div class="hud-stats">
+          <span id="time-text">00:00</span>
+          <span id="kills-text">擊殺 0</span>
+          <span id="gold-text">金幣 +0</span>
+          <button id="mute-btn" class="mute-btn" type="button">音效: 開</button>
+          <button id="pause-btn" class="mute-btn" type="button">暫停</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div id="weapon-bar" class="weapon-bar"></div>
+      <div id="joy-zone" class="joy-zone" title="虛擬搖桿">
+        <div id="joy-knob" class="joy-knob"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 開局選單 -->
+  <div id="menu-overlay" class="overlay">
+    <div class="panel">
+      <h1>像素槍戰倖存者</h1>
+      <p class="subtitle">全自動瞄準射擊 ｜ 鍵盤 WASD / 遊戲手把（搖桿移動、十字鍵+A選擇、LB/RB切分類）</p>
+      <div class="meta-bar">
+        <span id="meta-gold">金幣：0</span>
+        <span id="meta-best">最佳生存：00:00 ｜ 最高擊殺：0</span>
+      </div>
+
+      <h3>選擇關卡（決定掉落數字／運算牌）</h3>
+      <div id="stage-grid" class="stage-grid"></div>
+
+      <h3>選擇初始武器（18 把機制各異）</h3>
+      <div id="cat-tabs" class="cat-tabs"></div>
+      <div id="starter-grid" class="starter-grid"></div>
+
+      <h3>起始符文（選配，每把武器最多 3 種符文）</h3>
+      <div id="starter-rune-bar" class="rune-bar"></div>
+
+      <h3>局外改造商店</h3>
+      <div id="upgrade-list" class="upgrade-list"></div>
+
+      <button id="open-gear-btn" class="secondary-btn" type="button" style="margin-bottom:10px">裝備與算式工坊（武器×1 / 盾牌×1 / 手套×2 / 鞋子×2）</button>
+      <button id="start-btn" class="primary-btn" type="button">開始生存</button>
+    </div>
+  </div>
+
+  <!-- 升級三選一 -->
+  <div id="levelup-overlay" class="overlay hidden">
+    <div class="panel narrow">
+      <h2>等級提升！選擇一項強化</h2>
+      <p class="subtitle">點擊卡片或按鍵盤 1 / 2 / 3 選擇</p>
+      <div id="choice-list" class="choice-list"></div>
+    </div>
+  </div>
+
+  <!-- 拾獲符文選擇武器鑲嵌 -->
+  <div id="rune-overlay" class="overlay hidden">
+    <div class="panel narrow">
+      <div id="rune-pick-header" class="rune-pick-header"></div>
+      <p class="subtitle">選擇一把武器鑲嵌此符文（每把武器最多 3 種不重複符文）</p>
+      <div id="rune-weapon-list" class="choice-list"></div>
+      <button id="rune-skip-btn" class="secondary-btn" type="button">放棄鑲嵌（改為獲得 +10 金幣）</button>
+    </div>
+  </div>
+
+  <!-- 局外裝備與算式工坊 -->
+  <div id="gear-overlay" class="overlay hidden">
+    <div class="panel">
+      <h2>裝備與數字運算工坊</h2>
+      <p class="subtitle">每個裝備的每個數值最多可放 5 張「數字牌 + 運算牌」，算式結果即為該屬性加成（支援負數）</p>
+      <div id="gear-totals" class="meta-bar"></div>
+      <div id="gear-slots" class="gear-slots"></div>
+      <div id="gear-editor" class="gear-editor"></div>
+      <div class="workshop-cols">
+        <div>
+          <h4>裝備倉庫（點擊穿戴至上方選中槽位）</h4>
+          <div id="gear-bag" class="bag-grid"></div>
+        </div>
+        <div>
+          <h4>數字／運算牌庫（點擊放入選中算式）</h4>
+          <div id="card-bag" class="bag-grid"></div>
+        </div>
+      </div>
+      <button id="close-gear-btn" class="primary-btn" type="button" style="margin-top:12px">完成返回</button>
+    </div>
+  </div>
+
+  <!-- 暫停視窗 -->
+  <div id="pause-overlay" class="overlay hidden">
+    <div class="panel narrow">
+      <h2>遊戲暫停</h2>
+      <p class="subtitle">按 ESC 或手把 Start / B 鍵可繼續戰鬥</p>
+      <div id="pause-stats" class="go-stats"></div>
+      <div id="pause-weapons" class="choice-list" style="margin-bottom:14px"></div>
+      <button id="resume-btn" class="primary-btn" type="button">繼續戰鬥</button>
+      <button id="pause-home-btn" class="secondary-btn" type="button">回到局外首頁</button>
+    </div>
+  </div>
+
+  <!-- 結算畫面 -->
+  <div id="gameover-overlay" class="overlay hidden">
+    <div class="panel narrow">
+      <h2>任務結束</h2>
+      <div id="go-stats" class="go-stats"></div>
+      <button id="retry-btn" class="primary-btn" type="button">再戰一場</button>
+      <button id="back-menu-btn" class="secondary-btn" type="button">返回武器選單</button>
+    </div>
+  </div>
+</body>
+</html>
