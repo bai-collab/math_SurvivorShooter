@@ -21,6 +21,7 @@
       this.workshopTab = 'gear'; // gear | weapon | rune
       this.selectedWeaponId = 'revolver';
       this.selectedRuneId = 'fire';
+      this.sellCardMode = false;
 
       this.els = {
         hud: document.getElementById('hud'),
@@ -54,6 +55,8 @@
         gearEditor: document.getElementById('gear-editor'),
         gearBag: document.getElementById('gear-bag'),
         cardBag: document.getElementById('card-bag'),
+        cardBagTitle: document.getElementById('card-bag-title'),
+        cardSellToggleBtn: document.getElementById('card-sell-toggle-btn'),
         closeGearBtn: document.getElementById('close-gear-btn'),
 
         levelupOverlay: document.getElementById('levelup-overlay'),
@@ -96,6 +99,12 @@
       }
       if (this.els.pauseHomeBtn) {
         this.els.pauseHomeBtn.addEventListener('click', () => game.abortToMenu());
+      }
+      if (this.els.cardSellToggleBtn) {
+        this.els.cardSellToggleBtn.addEventListener('click', () => {
+          this.sellCardMode = !this.sellCardMode;
+          this.renderGearWorkshop(game);
+        });
       }
 
       this.els.startBtn.addEventListener('click', () => {
@@ -489,23 +498,45 @@
       }
 
       // 數字／運算牌庫
+      this._renderCardBag(game, !!curGear, (c) => {
+        if (!curGear) return;
+        game.insertCardToStat(curGear.uid, this.selectedStatKey, c.uid);
+        this.renderGearWorkshop(game);
+      });
+    }
+
+    _renderCardBag(game, hasTarget, onInsert) {
+      if (this.els.cardSellToggleBtn) {
+        this.els.cardSellToggleBtn.textContent = this.sellCardMode ? '販賣模式：開（+5金幣）' : '販賣模式：關';
+        this.els.cardSellToggleBtn.className = `cat-tab${this.sellCardMode ? ' active' : ''}`;
+      }
+      if (this.els.cardBagTitle) {
+        this.els.cardBagTitle.textContent = this.sellCardMode
+          ? `數字／運算牌庫（點擊賣出 +5 金幣｜目前 ${game.save.gold} 金幣）`
+          : '數字／運算牌庫（點擊放入選中算式）';
+      }
       this.els.cardBag.innerHTML = '';
       if (!game.save.cards.length) {
         this.els.cardBag.innerHTML = '<span class="choice-desc">牌庫空了，進關卡打怪就會掉落數字與運算牌！</span>';
-      } else {
-        for (const c of game.save.cards) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = `math-card ${c.kind}`;
-          btn.textContent = c.val;
-          btn.disabled = !curGear;
+        return;
+      }
+      for (const c of game.save.cards) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `math-card ${c.kind}`;
+        btn.textContent = c.val;
+        if (this.sellCardMode) {
+          btn.style.outline = '2px solid #ffd058';
+          btn.title = '點擊販賣獲得 +5 金幣';
           btn.addEventListener('click', () => {
-            if (!curGear) return;
-            game.insertCardToStat(curGear.uid, this.selectedStatKey, c.uid);
+            game.sellCard(c.uid);
             this.renderGearWorkshop(game);
           });
-          this.els.cardBag.appendChild(btn);
+        } else {
+          btn.disabled = !hasTarget;
+          btn.addEventListener('click', () => onInsert(c));
         }
+        this.els.cardBag.appendChild(btn);
       }
     }
 
@@ -627,24 +658,11 @@
       }
 
       // 數字／運算牌庫
-      this.els.cardBag.innerHTML = '';
-      if (!game.save.cards.length) {
-        this.els.cardBag.innerHTML = '<span class="choice-desc">牌庫空了，進關卡打怪就會掉落數字與運算牌！</span>';
-      } else {
-        for (const c of game.save.cards) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = `math-card ${c.kind}`;
-          btn.textContent = c.val;
-          btn.disabled = !def;
-          btn.addEventListener('click', () => {
-            if (!def) return;
-            game.insertCardToCollection(this.workshopTab, targetId, this.selectedStatKey, c.uid);
-            this.renderGearWorkshop(game);
-          });
-          this.els.cardBag.appendChild(btn);
-        }
-      }
+      this._renderCardBag(game, !!def, (c) => {
+        if (!def) return;
+        game.insertCardToCollection(this.workshopTab, targetId, this.selectedStatKey, c.uid);
+        this.renderGearWorkshop(game);
+      });
     }
 
     syncAll(game) {

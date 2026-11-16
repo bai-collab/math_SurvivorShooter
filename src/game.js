@@ -175,11 +175,13 @@
         nextXp: 50,
       };
 
-      // 進場時確定本局掉落機率：吸血約 1/500，其餘符文約 1/50~1/200，局外裝備約 1/200
+      // 進場時確定本局掉落機率：吸血約 1/500，其餘符文約 1/50~1/200，局外裝備約 1/200，卡牌約 1/35~1/50
       this.vampireRuneRate = 1 / 500;
       this.runNormalRuneInterval = 50 + Math.floor(Math.random() * 151);
       this.runNormalRuneRate = 1 / this.runNormalRuneInterval;
       this.gearDropRate = 1 / 200;
+      this.runCardInterval = 35 + Math.floor(Math.random() * 16);
+      this.cardDropRate = 1 / this.runCardInterval;
 
       if (!this.isWeaponUnlocked(this.selectedStarter)) {
         this.selectedStarter = this.save.unlockedWeapons[0] || 'pistol';
@@ -343,6 +345,16 @@
       const [card] = list.splice(cardIdx, 1);
       this.save.cards.push(card);
       writeSave(this.save);
+      return true;
+    }
+
+    sellCard(cardUid) {
+      const idx = this.save.cards.findIndex((c) => c.uid === cardUid);
+      if (idx === -1) return false;
+      this.save.cards.splice(idx, 1);
+      this.save.gold += 5;
+      writeSave(this.save);
+      this.audio.playGem();
       return true;
     }
 
@@ -1137,7 +1149,7 @@
             const gearType = types[Math.floor(Math.random() * types.length)];
             this.pickups.push({ kind: 'gear', gearType, x: e.x, z: e.z + 0.3, bobPhase: Math.random() * 6 });
           }
-          if (Math.random() < e.cardChance) {
+          if (Math.random() < this.cardDropRate) {
             const stage = this.getStage();
             const isNum = Math.random() < 0.65;
             const card = isNum
