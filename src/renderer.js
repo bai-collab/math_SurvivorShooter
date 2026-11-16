@@ -78,6 +78,35 @@
     return tex;
   }
 
+  function createTelegraphTexture(isRing) {
+    const c = document.createElement('canvas');
+    c.width = 32;
+    c.height = 32;
+    const ctx = c.getContext('2d');
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const r = Math.hypot(x - 15.5, y - 15.5);
+        if (r > 15) continue;
+        if (isRing) {
+          if (r >= 13.0) {
+            ctx.fillStyle = '#ff384c';
+            ctx.fillRect(x, y, 1, 1);
+          } else if (r >= 11.6 && (x + y) % 2 === 0) {
+            ctx.fillStyle = '#ff8a96';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        } else {
+          ctx.fillStyle = r > 13.8 ? '#ff4455' : 'rgba(255, 56, 76, 0.55)';
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    return tex;
+  }
+
   function createTerrainPool(scene, texture, maxCount) {
     const geo = new THREE.PlaneGeometry(1, 1);
     const mat = new THREE.MeshBasicMaterial({
@@ -160,6 +189,12 @@
       this.obstaclePool.count = 0;
       this.obstaclePool.frustumCulled = false;
       this.scene.add(this.obstaclePool);
+
+      // 怪物攻擊紅色預警圈（外框範圍 + 擴張進度內圈）
+      this.telegraphRingPool = createTerrainPool(this.scene, createTelegraphTexture(true), 40);
+      this.telegraphRingPool.material.opacity = 0.92;
+      this.telegraphFillPool = createTerrainPool(this.scene, createTelegraphTexture(false), 40);
+      this.telegraphFillPool.material.opacity = 0.5;
 
       // 玩家 2.5D 貼片
       const pGeo = new THREE.PlaneGeometry(1.45, 1.75);
@@ -336,6 +371,32 @@
         pool.count = tCounts[k];
         pool.instanceMatrix.needsUpdate = true;
       }
+
+      // 怪物攻擊紅色預警圈
+      const telegraphs = state.telegraphs || [];
+      let tgIdx = 0;
+      for (let i = 0; i < telegraphs.length && tgIdx < 40; i++) {
+        const tg = telegraphs[i];
+        const dia = tg.radius * 2;
+        const progress = Math.max(0.08, Math.min(1, 1 - tg.timer / tg.maxTimer));
+        const blink = tg.timer < 0.65 && Math.floor(tg.timer * 18) % 2 === 0 ? 1.05 : 1;
+
+        dummy.position.set(tg.x, 0.025, tg.z);
+        dummy.rotation.set(-Math.PI / 2, 0, 0);
+        dummy.scale.set(dia * blink, dia * blink, 1);
+        dummy.updateMatrix();
+        this.telegraphRingPool.setMatrixAt(tgIdx, dummy.matrix);
+
+        dummy.position.set(tg.x, 0.022, tg.z);
+        dummy.scale.set(dia * progress, dia * progress, 1);
+        dummy.updateMatrix();
+        this.telegraphFillPool.setMatrixAt(tgIdx, dummy.matrix);
+        tgIdx++;
+      }
+      this.telegraphRingPool.count = tgIdx;
+      this.telegraphRingPool.instanceMatrix.needsUpdate = true;
+      this.telegraphFillPool.count = tgIdx;
+      this.telegraphFillPool.instanceMatrix.needsUpdate = true;
 
       // 玩家陰影（向右偏移）
       dummy.position.set(player.x + 0.25, 0.02, player.z + 0.18);

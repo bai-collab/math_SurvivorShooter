@@ -195,6 +195,7 @@
       this.enemies = [];
       this.projectiles = [];
       this.enemyProjectiles = [];
+      this.telegraphs = [];
       this.pickups = [];
       this.effects = [];
       this.vortexes = [];
@@ -443,6 +444,8 @@
       this.updateWeapons(clampedDt * weaponRateScale);
       this.updateProjectiles(clampedDt);
       this.updateEnemyProjectiles(clampedDt);
+      this.updateTelegraphs(clampedDt);
+      if (this.stateName !== 'playing') return;
       this.updateVortexes(clampedDt);
       this.updateEnemies(clampedDt);
       this.updatePickups(clampedDt);
@@ -458,6 +461,7 @@
         enemies: this.enemies,
         projectiles: this.projectiles,
         enemyProjectiles: this.enemyProjectiles,
+        telegraphs: this.telegraphs,
         pickups: this.pickups,
         effects: this.effects,
         terrainZones: this.terrainZones,
@@ -1185,23 +1189,18 @@
           e.vx = 0;
           e.vz = 0;
           if (e.atkTimer <= 0 && e.freezeTimer <= 0) {
-            e.atkTimer = e.atkCd;
-            const ang = Math.atan2(dz, dx);
-            this.enemyProjectiles.push({
-              x: e.x,
-              z: e.z,
-              vx: (dx / dist) * e.projSpeed,
-              vz: (dz / dist) * e.projSpeed,
-              angle: -ang,
-              damage: e.damage,
-              sprite: e.projSprite,
-              onHitStatus: e.onHitStatus,
-              life: 3.0,
-            });
+            const warnDur = 3.0 + Math.random() * 1.5; // 3～4.5 秒紅色落點預告
+            e.atkTimer = warnDur + e.atkCd;
+            this.spawnAttackTelegraph(e, warnDur);
           }
         } else {
           e.vx = (dx / dist) * spd;
           e.vz = (dz / dist) * spd;
+          if (e.type === 'elite' && dist <= 7.5 && e.atkTimer <= 0 && e.freezeTimer <= 0) {
+            const warnDur = 3.2;
+            e.atkTimer = warnDur + 3.5;
+            this.spawnAttackTelegraph(e, warnDur);
+          }
         }
 
         // 擊退衰減
@@ -1627,6 +1626,42 @@
           this.enemyProjectiles.splice(i, 1);
           this.applyDamageToPlayer(ep.damage, ep.onHitStatus);
           if (this.stateName !== 'playing') return;
+        }
+      }
+    }
+
+    spawnAttackTelegraph(e, warnDur) {
+      const isMage = e.type.startsWith('mage_');
+      const radius = isMage ? 2.5 : e.type === 'elite' ? 2.8 : 1.75;
+      let fxColor = 0xff4455;
+      if (e.type === 'mage_fire') fxColor = 0xff762a;
+      else if (e.type === 'mage_ice') fxColor = 0x76e8ff;
+      else if (e.type === 'mage_thunder') fxColor = 0xffe45e;
+
+      this.telegraphs.push({
+        x: this.player.x,
+        z: this.player.z,
+        radius,
+        timer: warnDur,
+        maxTimer: warnDur,
+        damage: e.damage,
+        status: e.onHitStatus || null,
+        fxColor,
+      });
+    }
+
+    updateTelegraphs(dt) {
+      for (let i = this.telegraphs.length - 1; i >= 0; i--) {
+        const tg = this.telegraphs[i];
+        tg.timer -= dt;
+        if (tg.timer <= 0) {
+          this.telegraphs.splice(i, 1);
+          this.spawnFx(tg.x, tg.z, tg.fxColor, tg.radius * 1.4, 0.24, 0.22, true);
+          this.spawnFx(tg.x, tg.z, 0xffffff, tg.radius * 0.7, 0.16, 0.6);
+          if (Math.hypot(this.player.x - tg.x, this.player.z - tg.z) <= tg.radius) {
+            this.applyDamageToPlayer(tg.damage, tg.status);
+            if (this.stateName !== 'playing') return;
+          }
         }
       }
     }
