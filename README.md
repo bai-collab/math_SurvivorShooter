@@ -4,6 +4,18 @@
 
 ---
 
+## 遊戲畫面預覽
+
+| 局外主選單與關卡選擇 | 戰鬥畫面（2.5D 怪物與動態局部地形） |
+| --- | --- |
+| ![局外主選單](assets/screenshots/menu.png) | ![戰鬥畫面](assets/screenshots/combat.png) |
+
+| 局外裝備／武器／符文算式工坊 | 遊戲暫停與即時數值面板 |
+| --- | --- |
+| ![算式工坊](assets/screenshots/workshop.png) | ![暫停面板](assets/screenshots/pause.png) |
+
+---
+
 ## 操作方式
 
 - **鍵盤**：`W A S D` 或方向鍵移動；`1 / 2 / 3` 選擇升級項目；`ESC` 暫停／繼續。
