@@ -63,17 +63,17 @@
       <h3>選擇關卡（決定掉落數字／運算牌）</h3>
       <div id="stage-grid" class="stage-grid"></div>
 
-      <h3>選擇初始武器（18 把機制各異）</h3>
+      <h3>選擇初始武器（手槍類初始解鎖，其餘透過社區探索解鎖）</h3>
       <div id="cat-tabs" class="cat-tabs"></div>
       <div id="starter-grid" class="starter-grid"></div>
 
-      <h3>起始符文（選配，每把武器最多 3 種符文）</h3>
+      <h3>起始符文（火／雷初始解鎖，其餘透過社區探索解鎖）</h3>
       <div id="starter-rune-bar" class="rune-bar"></div>
 
       <h3>局外改造商店</h3>
       <div id="upgrade-list" class="upgrade-list"></div>
 
-      <button id="open-gear-btn" class="secondary-btn" type="button" style="margin-bottom:10px">裝備與算式工坊（武器×1 / 盾牌×1 / 手套×2 / 鞋子×2）</button>
+      <button id="open-gear-btn" class="secondary-btn" type="button" style="margin-bottom:10px">裝備 / 武器 / 符文 算式工坊</button>
       <button id="start-btn" class="primary-btn" type="button">開始生存</button>
     </div>
   </div>
@@ -97,17 +97,18 @@
     </div>
   </div>
 
-  <!-- 局外裝備與算式工坊 -->
+  <!-- 局外裝備 / 武器 / 符文算式工坊 -->
   <div id="gear-overlay" class="overlay hidden">
     <div class="panel">
       <h2>裝備與數字運算工坊</h2>
-      <p class="subtitle">每個裝備的每個數值最多可放 5 張「數字牌 + 運算牌」，算式結果即為該屬性加成（支援負數）</p>
+      <p class="subtitle">每個槽位最多放 5 張「數字牌 + 運算牌」，可強化裝備、武器與符文數值</p>
+      <div id="ws-tabs" class="cat-tabs" style="margin-bottom:8px"></div>
       <div id="gear-totals" class="meta-bar"></div>
       <div id="gear-slots" class="gear-slots"></div>
       <div id="gear-editor" class="gear-editor"></div>
       <div class="workshop-cols">
         <div>
-          <h4>裝備倉庫（點擊穿戴至上方選中槽位）</h4>
+          <h4 id="ws-left-title">裝備倉庫（點擊穿戴至上方選中槽位）</h4>
           <div id="gear-bag" class="bag-grid"></div>
         </div>
         <div>

@@ -7,11 +7,25 @@
   const ARENA_LIMIT = 108;
 
   const ENEMY_ARCHETYPES = {
-    crawler: { hp: 28, speed: 3.1, radius: 0.55, halfH: 0.62, shadowScale: 0.85, damage: 8, xp: 10, goldChance: 0.08, runeChance: 0.025, gearChance: 0.018, cardChance: 0.05 },
-    runner: { hp: 22, speed: 5.2, radius: 0.55, halfH: 0.72, shadowScale: 0.9, damage: 11, xp: 14, goldChance: 0.12, runeChance: 0.035, gearChance: 0.022, cardChance: 0.06 },
-    tank: { hp: 115, speed: 2.1, radius: 0.88, halfH: 0.95, shadowScale: 1.35, damage: 16, xp: 32, goldChance: 0.28, runeChance: 0.08, gearChance: 0.06, cardChance: 0.14 },
-    elite: { hp: 420, speed: 2.75, radius: 1.05, halfH: 1.15, shadowScale: 1.6, damage: 24, xp: 120, goldChance: 1.0, runeChance: 0.5, gearChance: 0.45, cardChance: 1.0 },
+    crawler: { hp: 28, speed: 3.1, radius: 0.55, halfH: 0.62, shadowScale: 0.85, damage: 8, atkCd: 0.7, xp: 10, goldChance: 0.08, runeChance: 0.025, gearChance: 0.018, cardChance: 0.05 },
+    runner: { hp: 22, speed: 5.2, radius: 0.55, halfH: 0.72, shadowScale: 0.9, damage: 11, atkCd: 0.5, xp: 14, goldChance: 0.12, runeChance: 0.035, gearChance: 0.022, cardChance: 0.06 },
+    tank: { hp: 115, speed: 2.1, radius: 0.88, halfH: 0.95, shadowScale: 1.35, damage: 16, atkCd: 1.0, xp: 32, goldChance: 0.28, runeChance: 0.08, gearChance: 0.06, cardChance: 0.14 },
+    elite: { hp: 420, speed: 2.75, radius: 1.05, halfH: 1.15, shadowScale: 1.6, damage: 24, atkCd: 0.8, xp: 120, goldChance: 1.0, runeChance: 0.5, gearChance: 0.45, cardChance: 1.0 },
+    // 1. 進戰類 - 基礎怪物
+    dagger: { hp: 24, speed: 5.0, radius: 0.55, halfH: 0.72, shadowScale: 0.85, damage: 6, atkCd: 0.42, xp: 11, goldChance: 0.09, runeChance: 0.025, gearChance: 0.02, cardChance: 0.05 },
+    blade: { hp: 58, speed: 3.1, radius: 0.7, halfH: 0.82, shadowScale: 1.1, damage: 14, atkCd: 0.9, xp: 18, goldChance: 0.14, runeChance: 0.04, gearChance: 0.03, cardChance: 0.08 },
+    spear: { hp: 32, speed: 4.6, radius: 0.58, halfH: 0.72, shadowScale: 0.9, damage: 7, atkCd: 0.48, onHitStatus: 'bleed', xp: 14, goldChance: 0.12, runeChance: 0.035, gearChance: 0.025, cardChance: 0.06 },
+    // 2. 中程類 - 每 200 隻出現 1 隻
+    archer: { hp: 95, speed: 2.0, radius: 0.65, halfH: 0.82, shadowScale: 1.0, damage: 24, atkCd: 2.4, range: 12, projSprite: 'e_arrow', projSpeed: 12.5, xp: 85, goldChance: 0.8, runeChance: 0.25, gearChance: 0.25, cardChance: 0.7 },
+    slinger: { hp: 80, speed: 3.2, radius: 0.65, halfH: 0.82, shadowScale: 1.0, damage: 8, atkCd: 1.5, range: 10, projSprite: 'e_stone', projSpeed: 9.5, onHitStatus: 'stun', xp: 85, goldChance: 0.8, runeChance: 0.25, gearChance: 0.25, cardChance: 0.7 },
+    // 3. 遠程魔法類 - 每 1000 隻出現 1 隻
+    mage_fire: { hp: 190, speed: 2.3, radius: 0.72, halfH: 0.9, shadowScale: 1.15, damage: 14, atkCd: 2.0, range: 15, projSprite: 'e_fire', projSpeed: 9.0, onHitStatus: 'burn', xp: 240, goldChance: 1.0, runeChance: 0.7, gearChance: 0.75, cardChance: 1.0 },
+    mage_ice: { hp: 190, speed: 2.3, radius: 0.72, halfH: 0.9, shadowScale: 1.15, damage: 12, atkCd: 2.0, range: 15, projSprite: 'e_ice', projSpeed: 9.0, onHitStatus: 'chill', xp: 240, goldChance: 1.0, runeChance: 0.7, gearChance: 0.75, cardChance: 1.0 },
+    mage_thunder: { hp: 190, speed: 2.3, radius: 0.72, halfH: 0.9, shadowScale: 1.15, damage: 15, atkCd: 2.2, range: 15, projSprite: 'e_thunder', projSpeed: 10.5, onHitStatus: 'paralyze', xp: 240, goldChance: 1.0, runeChance: 0.7, gearChance: 0.75, cardChance: 1.0 },
   };
+
+  const DEFAULT_UNLOCKED_WEAPONS = ['pistol', 'revolver', 'dual_smg', 'venom_pistol'];
+  const DEFAULT_UNLOCKED_RUNES = ['fire', 'thunder'];
 
   function createDefaultSave() {
     const g1 = PGS.Gear.createGearItem('weapon', 1, 'basic');
@@ -24,6 +38,10 @@
       upgrades: { might: 0, vitality: 0, haste: 0 },
       equipped: { weapon: 1, shield: 2, glove1: null, glove2: null, boot1: null, boot2: null },
       gearBag: [g1, g2],
+      unlockedWeapons: DEFAULT_UNLOCKED_WEAPONS.slice(),
+      unlockedRunes: DEFAULT_UNLOCKED_RUNES.slice(),
+      weaponCards: {},
+      runeCards: {},
       cards: [
         { uid: 3, kind: 'num', val: 2 },
         { uid: 4, kind: 'num', val: 5 },
@@ -51,6 +69,10 @@
           },
           equipped: parsed.equipped || def.equipped,
           gearBag: Array.isArray(parsed.gearBag) ? parsed.gearBag.map((g) => PGS.Gear.normalizeGearItem(g)) : def.gearBag,
+          unlockedWeapons: Array.isArray(parsed.unlockedWeapons) && parsed.unlockedWeapons.length ? parsed.unlockedWeapons : def.unlockedWeapons,
+          unlockedRunes: Array.isArray(parsed.unlockedRunes) && parsed.unlockedRunes.length ? parsed.unlockedRunes : def.unlockedRunes,
+          weaponCards: parsed.weaponCards && typeof parsed.weaponCards === 'object' ? parsed.weaponCards : {},
+          runeCards: parsed.runeCards && typeof parsed.runeCards === 'object' ? parsed.runeCards : {},
           cards: Array.isArray(parsed.cards) ? parsed.cards : def.cards,
         };
       }
@@ -138,6 +160,12 @@
         globalRateMult: Math.max(0.3, 1 + gearStats.aspd * 0.01),
         invuln: 0,
         paralyzeTimer: 0,
+        stunTimer: 0,
+        bleedTimer: 0,
+        bleedTick: 0,
+        burnTimer: 0,
+        burnTick: 0,
+        chillTimer: 0,
         poisonTick: 0,
         inSwamp: false,
         inPoison: false,
@@ -147,12 +175,26 @@
         nextXp: 50,
       };
 
-      this.weapons = [PGS.Weapons.createInstance(this.selectedStarter)];
+      // 進場時確定本局掉落機率：吸血約 1/500，其餘符文約 1/50~1/200，局外裝備約 1/200
+      this.vampireRuneRate = 1 / 500;
+      this.runNormalRuneInterval = 50 + Math.floor(Math.random() * 151);
+      this.runNormalRuneRate = 1 / this.runNormalRuneInterval;
+      this.gearDropRate = 1 / 200;
+
+      if (!this.isWeaponUnlocked(this.selectedStarter)) {
+        this.selectedStarter = this.save.unlockedWeapons[0] || 'pistol';
+      }
+      if (this.selectedStarterRune && !this.isRuneUnlocked(this.selectedStarterRune)) {
+        this.selectedStarterRune = null;
+      }
+
+      this.weapons = [this._makeWeaponInstance(this.selectedStarter)];
       if (this.selectedStarterRune) {
         this.applyRuneToWeapon(this.weapons[0], this.selectedStarterRune);
       }
       this.enemies = [];
       this.projectiles = [];
+      this.enemyProjectiles = [];
       this.pickups = [];
       this.effects = [];
       this.vortexes = [];
@@ -162,6 +204,7 @@
       this.elapsed = 0;
       this.kills = 0;
       this.runGold = 0;
+      this.totalSpawned = 0;
       this.spawnTimer = 0.4;
       this.eliteTimer = 45;
     }
@@ -202,6 +245,102 @@
     unequipSlot(slotId) {
       if (!this.save.equipped[slotId]) return false;
       this.save.equipped[slotId] = null;
+      writeSave(this.save);
+      return true;
+    }
+
+    isWeaponUnlocked(id) {
+      return this.save.unlockedWeapons.includes(id);
+    }
+
+    isRuneUnlocked(id) {
+      return this.save.unlockedRunes.includes(id);
+    }
+
+    unlockWeapon(id) {
+      if (!PGS.Weapons.DEFS[id] || this.isWeaponUnlocked(id)) return false;
+      this.save.unlockedWeapons.push(id);
+      writeSave(this.save);
+      return true;
+    }
+
+    unlockRune(id) {
+      if (!PGS.Runes.DEFS[id] || this.isRuneUnlocked(id)) return false;
+      this.save.unlockedRunes.push(id);
+      writeSave(this.save);
+      return true;
+    }
+
+    _evalSlotStat(statDef, cards) {
+      const res = PGS.Gear.evalCardFormula(cards || []);
+      let val = statDef.base + (res.valid ? res.value : 0);
+      if (statDef.min != null) val = Math.max(statDef.min, val);
+      if (statDef.max != null) val = Math.min(statDef.max, val);
+      if (statDef.round) val = Math.round(val);
+      return val;
+    }
+
+    getWeaponEffectiveStats(weaponId) {
+      const def = PGS.Weapons.DEFS[weaponId];
+      const out = {
+        damage: def.damage,
+        pellets: def.pellets,
+        pierce: def.pierce,
+        bounces: def.bounces,
+        chainCount: def.chainCount || 0,
+        magSize: def.magSize || 0,
+        splashRadius: def.splashRadius || 0,
+        ratePct: 0,
+      };
+      const slotDefs = PGS.Weapons.getCardStats(def);
+      const map = this.save.weaponCards[weaponId] || {};
+      for (const s of slotDefs) {
+        out[s.key] = this._evalSlotStat(s, map[s.key]);
+      }
+      return out;
+    }
+
+    getRuneEffectiveStats(runeId) {
+      const def = PGS.Runes.DEFS[runeId];
+      const out = {};
+      if (!def || !def.cardStats) return out;
+      const map = this.save.runeCards[runeId] || {};
+      for (const s of def.cardStats) {
+        out[s.key] = this._evalSlotStat(s, map[s.key]);
+      }
+      return out;
+    }
+
+    _makeWeaponInstance(id) {
+      const inst = PGS.Weapons.createInstance(id);
+      const eff = this.getWeaponEffectiveStats(id);
+      inst.eff = eff;
+      if (eff.magSize > 0) inst.ammo = eff.magSize;
+      return inst;
+    }
+
+    insertCardToCollection(group, targetId, statKey, cardUid) {
+      const bag = group === 'weapon' ? this.save.weaponCards : this.save.runeCards;
+      const cardIdx = this.save.cards.findIndex((c) => c.uid === cardUid);
+      if (cardIdx === -1) return false;
+      if (!bag[targetId]) bag[targetId] = {};
+      const list = bag[targetId][statKey] || [];
+      if (list.length >= PGS.Gear.MAX_CARDS_PER_STAT) return false;
+      const [card] = this.save.cards.splice(cardIdx, 1);
+      list.push(card);
+      bag[targetId][statKey] = list;
+      writeSave(this.save);
+      return true;
+    }
+
+    removeCardFromCollection(group, targetId, statKey, cardIdx) {
+      const bag = group === 'weapon' ? this.save.weaponCards : this.save.runeCards;
+      const map = bag[targetId];
+      if (!map) return false;
+      const list = map[statKey] || [];
+      if (cardIdx < 0 || cardIdx >= list.length) return false;
+      const [card] = list.splice(cardIdx, 1);
+      this.save.cards.push(card);
       writeSave(this.save);
       return true;
     }
@@ -258,6 +397,12 @@
         halfH: arch.halfH,
         shadowScale: arch.shadowScale,
         damage: arch.damage,
+        atkCd: arch.atkCd || 0.65,
+        atkTimer: 0,
+        range: arch.range || 0,
+        projSprite: arch.projSprite || null,
+        projSpeed: arch.projSpeed || 0,
+        onHitStatus: arch.onHitStatus || null,
         xp: arch.xp,
         goldChance: arch.goldChance,
         runeChance: arch.runeChance,
@@ -290,10 +435,14 @@
 
       this.updateTerrains(clampedDt);
       if (this.stateName !== 'playing') return;
+      this.updatePlayerStatuses(clampedDt);
+      if (this.stateName !== 'playing') return;
       this.updatePlayer(clampedDt);
       this.updateSpawner(clampedDt);
-      this.updateWeapons(clampedDt * (this.player.inIce ? 0.6 : 1));
+      const weaponRateScale = (this.player.inIce ? 0.6 : 1) * (this.player.chillTimer > 0 ? 0.55 : 1);
+      this.updateWeapons(clampedDt * weaponRateScale);
       this.updateProjectiles(clampedDt);
+      this.updateEnemyProjectiles(clampedDt);
       this.updateVortexes(clampedDt);
       this.updateEnemies(clampedDt);
       this.updatePickups(clampedDt);
@@ -308,6 +457,7 @@
         player: this.player,
         enemies: this.enemies,
         projectiles: this.projectiles,
+        enemyProjectiles: this.enemyProjectiles,
         pickups: this.pickups,
         effects: this.effects,
         terrainZones: this.terrainZones,
@@ -317,8 +467,7 @@
 
     updatePlayer(dt) {
       if (this.player.invuln > 0) this.player.invuln = Math.max(0, this.player.invuln - dt);
-      if (this.player.paralyzeTimer > 0) {
-        this.player.paralyzeTimer = Math.max(0, this.player.paralyzeTimer - dt);
+      if (this.player.paralyzeTimer > 0 || this.player.stunTimer > 0) {
         this.player.moving = false;
         this.resolveObstacleCollision(this.player, 0.55);
         return;
@@ -355,9 +504,18 @@
         const batch = 1 + Math.floor(mins * 1.8);
         for (let i = 0; i < batch; i++) {
           const r = Math.random();
-          if (this.elapsed > 50 && r < 0.14) this.spawnEnemy('tank');
-          else if (this.elapsed > 20 && r < 0.42) this.spawnEnemy('runner');
-          else this.spawnEnemy('crawler');
+          if (r < 0.36) this.spawnEnemy('dagger');
+          else if (r < 0.68) this.spawnEnemy('blade');
+          else this.spawnEnemy('spear');
+
+          this.totalSpawned++;
+          if (this.totalSpawned % 200 === 0) {
+            this.spawnEnemy(Math.random() < 0.5 ? 'archer' : 'slinger');
+          }
+          if (this.totalSpawned % 1000 === 0) {
+            const mages = ['mage_fire', 'mage_ice', 'mage_thunder'];
+            this.spawnEnemy(mages[Math.floor(Math.random() * mages.length)]);
+          }
         }
         this.spawnTimer = Math.max(0.28, 1.05 - mins * 0.35);
       }
@@ -379,7 +537,7 @@
           w.reloading -= dt;
           if (w.reloading <= 0) {
             w.reloading = 0;
-            w.ammo = def.magSize;
+            w.ammo = (w.eff && w.eff.magSize) || def.magSize;
             this.audio.playReload();
           }
           continue;
@@ -447,16 +605,18 @@
           const heatRatio = Math.min(1, w.heat / 100);
           cd = def.cooldown - (def.cooldown - def.minCooldown) * heatRatio;
         }
-        w.timer = cd / (w.rateMult * this.player.globalRateMult);
+        const effRate = Math.max(0.3, 1 + ((w.eff && w.eff.ratePct) || 0) * 0.01);
+        w.timer = cd / (w.rateMult * effRate * this.player.globalRateMult);
       }
     }
 
     fireWeapon(w, target, dmgBonus = 1) {
       const def = w.def;
+      const eff = w.eff || this.getWeaponEffectiveStats(w.id);
       const baseAngle = Math.atan2(target.z - this.player.z, target.x - this.player.x);
-      const count = def.pellets + w.bonusPellets;
+      const count = eff.pellets + w.bonusPellets;
       const isCrit = Math.random() * 100 < this.player.critChance;
-      const baseDmg = (def.damage + this.player.flatAtk) * w.damageMult * this.player.globalDamageMult * dmgBonus;
+      const baseDmg = (eff.damage + this.player.flatAtk) * w.damageMult * this.player.globalDamageMult * dmgBonus;
       const dmg = Math.max(1, baseDmg * (isCrit ? 1.75 : 1));
 
       for (let p = 0; p < count; p++) {
@@ -478,11 +638,11 @@
           knockback: def.knockback,
           life: def.life,
           maxLife: def.life,
-          pierce: def.pierce + w.bonusPierce,
-          bounces: def.bounces + w.bonusBounces,
+          pierce: eff.pierce + w.bonusPierce,
+          bounces: eff.bounces + w.bonusBounces,
           bounceRange: def.bounceRange || 7,
           arc: !!def.arc,
-          splashRadius: def.splashRadius || 0,
+          splashRadius: eff.splashRadius || 0,
           slowDuration: def.slowDuration || 0,
           poisonDps: def.poisonDps || 0,
           poisonDuration: def.poisonDuration || 0,
@@ -493,7 +653,7 @@
           homing: def.homing || 0,
           boomerang: !!def.boomerang,
           turnedAround: false,
-          chainCount: def.chainCount || 0,
+          chainCount: eff.chainCount || 0,
           chainRange: def.chainRange || 5.5,
           vortexRadius: def.vortexRadius || 0,
           vortexDuration: def.vortexDuration || 0,
@@ -662,11 +822,17 @@
           if (p.chainCount > 0) {
             this.triggerChainLightning(e, p);
           } else if (p.runes && p.runes.includes('thunder')) {
-            this.triggerChainLightning(e, { chainCount: 3, chainRange: 5.5, damage: p.damage * 0.65 });
+            const rs = this.getRuneEffectiveStats('thunder');
+            this.triggerChainLightning(e, {
+              chainCount: rs.chains || 3,
+              chainRange: 5.5,
+              damage: p.damage * ((rs.dmgPct || 65) * 0.01),
+            });
           }
 
           if (p.runes && p.runes.includes('quake')) {
-            this.triggerImpactShockwave(e.x, e.z, 2.6, p.damage * 0.45, 6.2);
+            const rs = this.getRuneEffectiveStats('quake');
+            this.triggerImpactShockwave(e.x, e.z, rs.radius || 2.6, p.damage * ((rs.dmgPct || 45) * 0.01), 6.2);
           }
 
           if (p.bounces > 0) {
@@ -734,20 +900,30 @@
       // 符文效果（火 / 冰 / 光 / 吸血）
       if (p.runes && p.runes.length > 0) {
         if (p.runes.includes('fire')) {
-          e.burnDps = Math.max(e.burnDps, 14);
-          e.burnTimer = Math.max(e.burnTimer, 2.8);
+          const rs = this.getRuneEffectiveStats('fire');
+          e.burnDps = Math.max(e.burnDps, rs.burnDps || 14);
+          e.burnTimer = Math.max(e.burnTimer, rs.burnSec || 2.8);
         }
         if (p.runes.includes('ice')) {
-          e.slowTimer = Math.max(e.slowTimer, 2.0);
+          const rs = this.getRuneEffectiveStats('ice');
+          e.slowTimer = Math.max(e.slowTimer, rs.slowSec || 2.0);
+          if ((rs.freezeChance || 0) > 0 && Math.random() * 100 < rs.freezeChance) {
+            e.freezeTimer = Math.max(e.freezeTimer, 1.0);
+          }
         }
         if (p.runes.includes('light')) {
-          e.blindTimer = Math.max(e.blindTimer, 2.2);
+          const rs = this.getRuneEffectiveStats('light');
+          e.blindTimer = Math.max(e.blindTimer, rs.blindSec || 2.2);
           e.blindAngle = Math.random() * Math.PI * 2;
+          if ((rs.dmgBonus || 0) > 0) e.hp -= rs.dmgBonus;
           this.spawnFx(e.x, e.z, 0xfff6b8, 0.72, 0.16);
         }
         if (p.runes.includes('vampire') && this.player.hp < this.player.maxHp) {
-          this.player.hp = Math.min(this.player.maxHp, this.player.hp + 1.5);
-          this.spawnFx(this.player.x, this.player.z, 0xff5478, 0.45, 0.12, 1.1);
+          const rs = this.getRuneEffectiveStats('vampire');
+          if (Math.random() * 100 < (rs.chance ?? 100)) {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + (rs.heal || 1.5));
+            this.spawnFx(this.player.x, this.player.z, 0xff5478, 0.45, 0.12, 1.1);
+          }
         }
       }
     }
@@ -943,11 +1119,16 @@
           if (Math.random() < e.goldChance) {
             this.pickups.push({ kind: 'coin', x: e.x + 0.3, z: e.z, value: e.type === 'elite' ? 12 : 2, bobPhase: 0 });
           }
-          if (Math.random() < e.runeChance) {
-            const rId = PGS.Runes.ALL_IDS[Math.floor(Math.random() * PGS.Runes.ALL_IDS.length)];
-            this.pickups.push({ kind: 'rune', runeId: rId, x: e.x - 0.3, z: e.z, bobPhase: Math.random() * 6 });
+          if (Math.random() < this.vampireRuneRate && this.isRuneUnlocked('vampire')) {
+            this.pickups.push({ kind: 'rune', runeId: 'vampire', x: e.x - 0.3, z: e.z, bobPhase: Math.random() * 6 });
+          } else if (Math.random() < this.runNormalRuneRate) {
+            const normalRunes = this.save.unlockedRunes.filter((r) => r !== 'vampire');
+            if (normalRunes.length > 0) {
+              const rId = normalRunes[Math.floor(Math.random() * normalRunes.length)];
+              this.pickups.push({ kind: 'rune', runeId: rId, x: e.x - 0.3, z: e.z, bobPhase: Math.random() * 6 });
+            }
           }
-          if (Math.random() < e.gearChance) {
+          if (Math.random() < this.gearDropRate) {
             const types = ['weapon', 'shield', 'glove', 'boot'];
             const gearType = types[Math.floor(Math.random() * types.length)];
             this.pickups.push({ kind: 'gear', gearType, x: e.x, z: e.z + 0.3, bobPhase: Math.random() * 6 });
@@ -970,6 +1151,7 @@
         if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
         if (e.slowTimer > 0) e.slowTimer = Math.max(0, e.slowTimer - dt);
         if (e.freezeTimer > 0) e.freezeTimer = Math.max(0, e.freezeTimer - dt);
+        if (e.atkTimer > 0) e.atkTimer = Math.max(0, e.atkTimer - dt);
 
         // 中毒與燃燒持續傷害
         let dotDmg = 0;
@@ -999,6 +1181,24 @@
           e.blindAngle += (Math.random() - 0.5) * 4 * dt;
           e.vx = Math.cos(e.blindAngle) * spd * 0.75;
           e.vz = Math.sin(e.blindAngle) * spd * 0.75;
+        } else if (e.range > 0 && dist <= e.range) {
+          e.vx = 0;
+          e.vz = 0;
+          if (e.atkTimer <= 0 && e.freezeTimer <= 0) {
+            e.atkTimer = e.atkCd;
+            const ang = Math.atan2(dz, dx);
+            this.enemyProjectiles.push({
+              x: e.x,
+              z: e.z,
+              vx: (dx / dist) * e.projSpeed,
+              vz: (dz / dist) * e.projSpeed,
+              angle: -ang,
+              damage: e.damage,
+              sprite: e.projSprite,
+              onHitStatus: e.onHitStatus,
+              life: 3.0,
+            });
+          }
         } else {
           e.vx = (dx / dist) * spd;
           e.vz = (dz / dist) * spd;
@@ -1012,19 +1212,11 @@
         e.walkPhase += dt * 10;
         this.resolveObstacleCollision(e, e.radius);
 
-        // 與玩家碰撞扣血（套用防禦與減傷；減傷為負數時代表降低受傷）
-        if (dist < e.radius + 0.45 && this.player.invuln <= 0) {
-          const afterDr = e.damage * (1 + this.player.dr * 0.01);
-          const finalDmg = Math.max(1, Math.round(afterDr - this.player.def));
-          this.player.hp -= finalDmg;
-          this.player.invuln = 0.45;
-          this.renderer.addShake(0.24, 0.14);
-          this.audio.playHurt();
-          if (this.player.hp <= 0) {
-            this.player.hp = 0;
-            this.finishRun();
-            return;
-          }
+        // 與玩家碰撞扣血（依個別怪物 atkCd 觸發，套用防禦與減傷）
+        if (dist < e.radius + 0.45 && e.atkTimer <= 0 && this.player.invuln <= 0) {
+          e.atkTimer = e.atkCd;
+          this.applyDamageToPlayer(e.damage, e.onHitStatus);
+          if (this.stateName !== 'playing') return;
         }
       }
 
@@ -1142,9 +1334,9 @@
 
       const choices = [];
       const ownedIds = new Set(this.weapons.map((w) => w.id));
-      const unowned = PGS.Weapons.ALL_IDS.filter((id) => !ownedIds.has(id));
+      const unowned = this.save.unlockedWeapons.filter((id) => !ownedIds.has(id));
 
-      // 優先提供 1 個新武器選項（若尚未集滿 6 把）
+      // 優先提供 1 個已解鎖的新武器選項（若尚未集滿 6 把）
       if (unowned.length > 0 && this.weapons.length < 6) {
         const pick = unowned[Math.floor(Math.random() * unowned.length)];
         const def = PGS.Weapons.DEFS[pick];
@@ -1154,7 +1346,7 @@
           desc: def.desc,
           iconId: pick,
           apply: () => {
-            this.weapons.push(PGS.Weapons.createInstance(pick));
+            this.weapons.push(this._makeWeaponInstance(pick));
           },
         });
       }
@@ -1342,6 +1534,100 @@
         }
       } else {
         this.player.poisonTick = 0;
+      }
+    }
+
+    applyDamageToPlayer(rawDamage, status) {
+      const afterDr = rawDamage * (1 + this.player.dr * 0.01);
+      const finalDmg = Math.max(1, Math.round(afterDr - this.player.def));
+      this.player.hp -= finalDmg;
+      this.player.invuln = 0.18;
+      this.renderer.addShake(0.22, 0.12);
+      this.audio.playHurt();
+
+      if (status === 'bleed') this.player.bleedTimer = 5.0;
+      else if (status === 'stun') this.player.stunTimer = 5.0;
+      else if (status === 'burn') this.player.burnTimer = 4.0;
+      else if (status === 'chill') this.player.chillTimer = 5.0;
+      else if (status === 'paralyze') this.player.paralyzeTimer = Math.max(this.player.paralyzeTimer, 1.5);
+
+      if (this.player.hp <= 0) {
+        this.player.hp = 0;
+        this.finishRun();
+      }
+    }
+
+    updatePlayerStatuses(dt) {
+      const p = this.player;
+      if (p.paralyzeTimer > 0) p.paralyzeTimer = Math.max(0, p.paralyzeTimer - dt);
+      if (p.stunTimer > 0) p.stunTimer = Math.max(0, p.stunTimer - dt);
+      if (p.chillTimer > 0) p.chillTimer = Math.max(0, p.chillTimer - dt);
+
+      if (p.bleedTimer > 0) {
+        p.bleedTimer = Math.max(0, p.bleedTimer - dt);
+        p.bleedTick += dt;
+        if (p.bleedTick >= 0.5) {
+          p.bleedTick -= 0.5;
+          const dmg = Math.max(1, Math.round(p.maxHp * 0.02 * (1 + p.dr * 0.01)));
+          p.hp -= dmg;
+          this.spawnFx(p.x, p.z, 0xd83242, 0.75, 0.16, 0.75);
+          if (p.hp <= 0) {
+            p.hp = 0;
+            this.finishRun();
+            return;
+          }
+        }
+      } else {
+        p.bleedTick = 0;
+      }
+
+      if (p.burnTimer > 0) {
+        p.burnTimer = Math.max(0, p.burnTimer - dt);
+        p.burnTick += dt;
+        if (p.burnTick >= 0.5) {
+          p.burnTick -= 0.5;
+          const dmg = Math.max(2, Math.round(p.maxHp * 0.025 * (1 + p.dr * 0.01)));
+          p.hp -= dmg;
+          this.spawnFx(p.x, p.z, 0xff7a2e, 0.85, 0.16, 0.8);
+          if (p.hp <= 0) {
+            p.hp = 0;
+            this.finishRun();
+            return;
+          }
+        }
+      } else {
+        p.burnTick = 0;
+      }
+    }
+
+    updateEnemyProjectiles(dt) {
+      for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
+        const ep = this.enemyProjectiles[i];
+        ep.x += ep.vx * dt;
+        ep.z += ep.vz * dt;
+        ep.life -= dt;
+        if (ep.life <= 0) {
+          this.enemyProjectiles.splice(i, 1);
+          continue;
+        }
+        // 碰到障礙物擋下
+        let blocked = false;
+        for (let k = 0; k < this.terrainZones.length; k++) {
+          const z = this.terrainZones[k];
+          if (z.kind === 'obstacle' && Math.hypot(ep.x - z.x, ep.z - z.z) < z.radius + 0.25) {
+            blocked = true;
+            break;
+          }
+        }
+        if (blocked) {
+          this.enemyProjectiles.splice(i, 1);
+          continue;
+        }
+        if (Math.hypot(ep.x - this.player.x, ep.z - this.player.z) < 0.75) {
+          this.enemyProjectiles.splice(i, 1);
+          this.applyDamageToPlayer(ep.damage, ep.onHitStatus);
+          if (this.stateName !== 'playing') return;
+        }
       }
     }
 

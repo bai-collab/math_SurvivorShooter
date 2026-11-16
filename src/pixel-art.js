@@ -252,6 +252,105 @@
       px(15, 18, [96, 30, 52], 5, 5);
     });
 
+    // 新版近戰 / 中程 / 遠程法師怪物精靈
+    const daggerCanvas = createOutlinedSprite(18, 20, (px) => {
+      px(5, 3, [82, 168, 128], 8, 6);
+      px(6, 5, [255, 240, 150], 2, 2);
+      px(10, 5, [255, 240, 150], 2, 2);
+      px(5, 9, [58, 122, 94], 8, 6);
+      px(5, 15, [42, 86, 68], 3, 4);
+      px(10, 15, [42, 86, 68], 3, 4);
+      // 短劍
+      px(13, 8, [210, 224, 240], 4, 2);
+      px(12, 7, [140, 96, 54], 2, 4);
+    });
+
+    const bladeCanvas = createOutlinedSprite(22, 22, (px) => {
+      px(5, 3, [156, 66, 66], 10, 6);
+      px(7, 5, [255, 180, 120], 2, 2);
+      px(11, 5, [255, 180, 120], 2, 2);
+      px(4, 9, [118, 48, 52], 12, 7);
+      px(5, 16, [76, 32, 36], 4, 5);
+      px(11, 16, [76, 32, 36], 4, 5);
+      // 大刀
+      px(16, 4, [215, 222, 232], 3, 9);
+      px(15, 12, [145, 95, 50], 4, 2);
+    });
+
+    const spearCanvas = createOutlinedSprite(20, 20, (px) => {
+      px(5, 3, [78, 118, 198], 8, 6);
+      px(6, 5, [255, 235, 150], 2, 2);
+      px(10, 5, [255, 235, 150], 2, 2);
+      px(5, 9, [54, 84, 150], 8, 6);
+      px(5, 15, [40, 60, 110], 3, 4);
+      px(10, 15, [40, 60, 110], 3, 4);
+      // 長矛
+      px(2, 10, [150, 98, 52], 14, 2);
+      px(15, 9, [235, 90, 90], 4, 4);
+    });
+
+    const archerCanvas = createOutlinedSprite(20, 22, (px) => {
+      px(5, 2, [64, 146, 78], 8, 4);
+      px(6, 6, [218, 184, 142], 6, 4);
+      px(9, 7, [40, 40, 48], 2, 2);
+      px(5, 10, [48, 112, 62], 8, 6);
+      px(5, 16, [74, 56, 40], 3, 4);
+      px(10, 16, [74, 56, 40], 3, 4);
+      // 弓
+      px(14, 6, [172, 118, 58], 2, 10);
+      px(13, 5, [230, 230, 230], 1, 12);
+    });
+
+    const slingerCanvas = createOutlinedSprite(20, 22, (px) => {
+      px(5, 4, [186, 138, 72], 9, 5);
+      px(6, 6, [255, 232, 170], 2, 2);
+      px(10, 6, [255, 232, 170], 2, 2);
+      px(4, 9, [142, 102, 54], 11, 7);
+      px(5, 16, [98, 68, 38], 3, 4);
+      px(11, 16, [98, 68, 38], 3, 4);
+      // 石頭
+      px(15, 7, [155, 162, 172], 4, 4);
+    });
+
+    const makeMageCanvas = (robeLight, robeDark, orbCol) =>
+      createOutlinedSprite(22, 24, (px) => {
+        px(7, 1, robeLight, 6, 3);
+        px(5, 4, robeDark, 10, 3);
+        px(6, 7, [36, 30, 48], 8, 4);
+        px(7, 8, orbCol, 2, 2);
+        px(11, 8, orbCol, 2, 2);
+        px(5, 11, robeLight, 10, 9);
+        px(6, 15, robeDark, 8, 6);
+        // 法杖與寶珠
+        px(16, 6, [138, 92, 52], 2, 14);
+        px(15, 3, orbCol, 4, 4);
+      });
+
+    const mageFireCanvas = makeMageCanvas([224, 78, 52], [156, 42, 34], [255, 212, 84]);
+    const mageIceCanvas = makeMageCanvas([76, 178, 235], [44, 114, 172], [186, 245, 255]);
+    const mageThunderCanvas = makeMageCanvas([142, 92, 224], [88, 52, 154], [255, 236, 92]);
+
+    const eArrowCanvas = createOutlinedSprite(10, 8, (px) => {
+      px(1, 3, [186, 134, 72], 6, 2);
+      px(6, 2, [230, 238, 248], 3, 4);
+    });
+    const eStoneCanvas = createOutlinedSprite(10, 10, (px) => {
+      px(2, 2, [146, 154, 164], 6, 6);
+      px(3, 3, [190, 198, 210], 2, 2);
+    });
+    const eFireCanvas = createOutlinedSprite(12, 12, (px) => {
+      px(2, 2, [255, 96, 36], 8, 8);
+      px(4, 4, [255, 224, 96], 4, 4);
+    });
+    const eIceCanvas = createOutlinedSprite(12, 12, (px) => {
+      px(2, 2, [82, 198, 255], 8, 8);
+      px(4, 4, [220, 250, 255], 4, 4);
+    });
+    const eThunderCanvas = createOutlinedSprite(12, 12, (px) => {
+      px(2, 2, [242, 214, 52], 8, 8);
+      px(4, 4, [255, 255, 210], 4, 4);
+    });
+
     // 子彈與掉落物（高對比、遠看也清晰）
     const bulletCanvas = createOutlinedSprite(10, 10, (px) => {
       px(3, 3, [255, 232, 110], 4, 4);
@@ -441,6 +540,19 @@
       runner: makeCanvasTexture(runnerCanvas),
       tank: makeCanvasTexture(tankCanvas),
       elite: makeCanvasTexture(eliteCanvas),
+      dagger: makeCanvasTexture(daggerCanvas),
+      blade: makeCanvasTexture(bladeCanvas),
+      spear: makeCanvasTexture(spearCanvas),
+      archer: makeCanvasTexture(archerCanvas),
+      slinger: makeCanvasTexture(slingerCanvas),
+      mage_fire: makeCanvasTexture(mageFireCanvas),
+      mage_ice: makeCanvasTexture(mageIceCanvas),
+      mage_thunder: makeCanvasTexture(mageThunderCanvas),
+      e_arrow: makeCanvasTexture(eArrowCanvas),
+      e_stone: makeCanvasTexture(eStoneCanvas),
+      e_fire: makeCanvasTexture(eFireCanvas),
+      e_ice: makeCanvasTexture(eIceCanvas),
+      e_thunder: makeCanvasTexture(eThunderCanvas),
       bullet: makeCanvasTexture(bulletCanvas),
       pellet: makeCanvasTexture(pelletCanvas),
       rail: makeCanvasTexture(railCanvas),

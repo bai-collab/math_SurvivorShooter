@@ -18,6 +18,9 @@
       this.onPickChoice = null;
       this.selectedSlotId = 'weapon';
       this.selectedStatKey = 'atk';
+      this.workshopTab = 'gear'; // gear | weapon | rune
+      this.selectedWeaponId = 'revolver';
+      this.selectedRuneId = 'fire';
 
       this.els = {
         hud: document.getElementById('hud'),
@@ -44,6 +47,8 @@
         startBtn: document.getElementById('start-btn'),
 
         gearOverlay: document.getElementById('gear-overlay'),
+        wsTabs: document.getElementById('ws-tabs'),
+        wsLeftTitle: document.getElementById('ws-left-title'),
         gearTotals: document.getElementById('gear-totals'),
         gearSlots: document.getElementById('gear-slots'),
         gearEditor: document.getElementById('gear-editor'),
@@ -213,32 +218,37 @@
         this.els.catTabs.appendChild(tab);
       }
 
-      // 18 把初始武器選擇卡
+      // 18 把初始武器選擇卡（未解鎖者禁止選取）
       this.els.starterGrid.innerHTML = '';
       for (const id of PGS.Weapons.ALL_IDS) {
         const def = PGS.Weapons.DEFS[id];
         if (this.activeCategory !== '全部' && def.category !== this.activeCategory) continue;
+        const unlocked = game.isWeaponUnlocked(id);
         const card = document.createElement('button');
         card.type = 'button';
-        card.className = `starter-card${game.selectedStarter === id ? ' selected' : ''}`;
+        card.disabled = !unlocked;
+        card.className = `starter-card${game.selectedStarter === id && unlocked ? ' selected' : ''}`;
+        if (!unlocked) card.style.opacity = '0.48';
         card.innerHTML = `
           <div class="starter-head">
             <img src="${this.iconDataUrls[id]}" alt="${def.name}" class="pixel-icon" />
             <div>
-              <div class="starter-name">${def.name}</div>
-              <div class="starter-tag">${def.tag}</div>
+              <div class="starter-name">${def.name}${unlocked ? '' : ' 🔒'}</div>
+              <div class="starter-tag">${unlocked ? def.tag : '未解鎖（社區探索解鎖）'}</div>
             </div>
           </div>
           <div class="starter-desc">${def.desc}</div>
         `;
-        card.addEventListener('click', () => {
-          game.selectedStarter = id;
-          this.renderMenu(game);
-        });
+        if (unlocked) {
+          card.addEventListener('click', () => {
+            game.selectedStarter = id;
+            this.renderMenu(game);
+          });
+        }
         this.els.starterGrid.appendChild(card);
       }
 
-      // 起始符文選擇
+      // 起始符文選擇（未解鎖者禁止選取）
       this.els.starterRuneBar.innerHTML = '';
       const noneBtn = document.createElement('button');
       noneBtn.type = 'button';
@@ -252,18 +262,23 @@
 
       for (const rId of PGS.Runes.ALL_IDS) {
         const rDef = PGS.Runes.DEFS[rId];
+        const unlocked = game.isRuneUnlocked(rId);
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `rune-btn${game.selectedStarterRune === rId ? ' selected' : ''}`;
-        btn.title = rDef.desc;
+        btn.disabled = !unlocked;
+        btn.className = `rune-btn${game.selectedStarterRune === rId && unlocked ? ' selected' : ''}`;
+        if (!unlocked) btn.style.opacity = '0.48';
+        btn.title = unlocked ? rDef.desc : `${rDef.desc}（未解鎖：社區探索解鎖）`;
         btn.innerHTML = `
           <img src="${this.runeDataUrls[rId]}" alt="${rDef.name}" class="rune-mini-icon" />
-          <span>${rDef.short}｜${rDef.name.replace('之符文', '').replace('符文', '')}</span>
+          <span>${rDef.short}｜${rDef.name.replace('之符文', '').replace('符文', '')}${unlocked ? '' : ' 🔒'}</span>
         `;
-        btn.addEventListener('click', () => {
-          game.selectedStarterRune = rId;
-          this.renderMenu(game);
-        });
+        if (unlocked) {
+          btn.addEventListener('click', () => {
+            game.selectedStarterRune = rId;
+            this.renderMenu(game);
+          });
+        }
         this.els.starterRuneBar.appendChild(btn);
       }
 
@@ -294,6 +309,34 @@
     }
 
     renderGearWorkshop(game) {
+      // 工坊分頁標籤（裝備槽位 / 武器強化 / 符文強化）
+      if (this.els.wsTabs) {
+        this.els.wsTabs.innerHTML = '';
+        const tabs = [
+          { key: 'gear', label: '裝備槽位' },
+          { key: 'weapon', label: '武器強化' },
+          { key: 'rune', label: '符文強化' },
+        ];
+        for (const t of tabs) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `cat-tab${this.workshopTab === t.key ? ' active' : ''}`;
+          btn.textContent = t.label;
+          btn.addEventListener('click', () => {
+            this.workshopTab = t.key;
+            this.renderGearWorkshop(game);
+          });
+          this.els.wsTabs.appendChild(btn);
+        }
+      }
+
+      if (this.workshopTab !== 'gear') {
+        this._renderCollectionWorkshop(game);
+        return;
+      }
+      this.els.gearSlots.style.display = '';
+      if (this.els.wsLeftTitle) this.els.wsLeftTitle.textContent = '裝備倉庫（點擊穿戴至上方選中槽位）';
+
       const totals = PGS.Gear.computeTotalStats(game.save);
       const fmt = (v, unit = '') => `${v >= 0 ? '+' : ''}${v}${unit}`;
       const tierBadge = (gear) => {
@@ -466,6 +509,144 @@
       }
     }
 
+    _renderCollectionWorkshop(game) {
+      const isWeapon = this.workshopTab === 'weapon';
+      this.els.gearSlots.style.display = 'none';
+      this.els.gearTotals.innerHTML = isWeapon
+        ? '<span>選擇已解鎖武器，裝入數字與運算牌強化其核心機制數值</span>'
+        : '<span>選擇已解鎖符文，裝入數字與運算牌強化其觸發數值</span>';
+      if (this.els.wsLeftTitle) {
+        this.els.wsLeftTitle.textContent = isWeapon ? '已解鎖武器（點擊編輯算式）' : '已解鎖符文（點擊編輯算式）';
+      }
+
+      const fmt = (v, unit = '') => `${v}${unit}`;
+      let targetId = isWeapon ? this.selectedWeaponId : this.selectedRuneId;
+      if (isWeapon && !game.isWeaponUnlocked(targetId)) {
+        targetId = game.save.unlockedWeapons[0];
+        this.selectedWeaponId = targetId;
+      } else if (!isWeapon && !game.isRuneUnlocked(targetId)) {
+        targetId = game.save.unlockedRunes[0];
+        this.selectedRuneId = targetId;
+      }
+
+      const def = isWeapon ? PGS.Weapons.DEFS[targetId] : PGS.Runes.DEFS[targetId];
+      const slotDefs = def ? (isWeapon ? PGS.Weapons.getCardStats(def) : def.cardStats || []) : [];
+      if (!slotDefs.some((s) => s.key === this.selectedStatKey) && slotDefs.length) {
+        this.selectedStatKey = slotDefs[0].key;
+      }
+      const cardMap = (isWeapon ? game.save.weaponCards[targetId] : game.save.runeCards[targetId]) || {};
+
+      this.els.gearEditor.innerHTML = '';
+      if (!def) {
+        this.els.gearEditor.innerHTML = '<div class="choice-desc">尚無已解鎖項目</div>';
+      } else {
+        const header = document.createElement('div');
+        header.innerHTML = `<strong>${def.name}</strong> <small style="color:#9aa4b2">${def.desc}</small>`;
+        this.els.gearEditor.appendChild(header);
+
+        for (const st of slotDefs) {
+          const cards = cardMap[st.key] || [];
+          const evalRes = PGS.Gear.evalCardFormula(cards);
+          let finalVal = st.base + (evalRes.valid ? evalRes.value : 0);
+          if (st.min != null) finalVal = Math.max(st.min, finalVal);
+          if (st.max != null) finalVal = Math.min(st.max, finalVal);
+          if (st.round) finalVal = Math.round(finalVal);
+          else finalVal = Math.round(finalVal * 10) / 10;
+
+          const row = document.createElement('div');
+          row.className = `stat-formula-row${this.selectedStatKey === st.key ? ' selected' : ''}`;
+          row.addEventListener('click', () => {
+            this.selectedStatKey = st.key;
+            this.renderGearWorkshop(game);
+          });
+
+          const left = document.createElement('div');
+          left.className = 'formula-cards';
+          const labelSpan = document.createElement('span');
+          labelSpan.style.minWidth = '118px';
+          labelSpan.innerHTML = `<strong>${st.label}</strong> <small style="color:#ffd058">基礎${fmt(st.base, st.unit)}</small>`;
+          left.appendChild(labelSpan);
+
+          for (let idx = 0; idx < PGS.Gear.MAX_CARDS_PER_STAT; idx++) {
+            const c = cards[idx];
+            if (c) {
+              const cardBtn = document.createElement('button');
+              cardBtn.type = 'button';
+              cardBtn.className = `math-card ${c.kind}`;
+              cardBtn.textContent = c.val;
+              cardBtn.title = '點擊拆回牌庫';
+              cardBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectedStatKey = st.key;
+                game.removeCardFromCollection(this.workshopTab, targetId, st.key, idx);
+                this.renderGearWorkshop(game);
+              });
+              left.appendChild(cardBtn);
+            } else {
+              const empty = document.createElement('span');
+              empty.className = 'math-slot-empty';
+              empty.textContent = '+';
+              left.appendChild(empty);
+            }
+          }
+
+          const right = document.createElement('div');
+          right.innerHTML = evalRes.valid
+            ? `= <strong style="color:${finalVal >= st.base ? '#4ce0c0' : '#ff6e6e'}">${fmt(finalVal, st.unit)}</strong>`
+            : `<span style="color:#ffd058;font-size:12px">(${evalRes.reason})</span>`;
+
+          row.appendChild(left);
+          row.appendChild(right);
+          this.els.gearEditor.appendChild(row);
+        }
+      }
+
+      // 左欄清單：已解鎖武器或符文
+      this.els.gearBag.innerHTML = '';
+      const ids = isWeapon ? PGS.Weapons.ALL_IDS : PGS.Runes.ALL_IDS;
+      for (const id of ids) {
+        const unlocked = isWeapon ? game.isWeaponUnlocked(id) : game.isRuneUnlocked(id);
+        if (!unlocked) continue;
+        const item = isWeapon ? PGS.Weapons.DEFS[id] : PGS.Runes.DEFS[id];
+        const iconUrl = isWeapon ? this.iconDataUrls[id] : this.runeDataUrls[id];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bag-item-btn';
+        if (id === targetId) btn.style.borderColor = '#4ce0c0';
+        btn.innerHTML = `
+          <img src="${iconUrl}" alt="" class="rune-mini-icon" />
+          <span>${item.name}</span>
+        `;
+        btn.addEventListener('click', () => {
+          if (isWeapon) this.selectedWeaponId = id;
+          else this.selectedRuneId = id;
+          this.selectedStatKey = '';
+          this.renderGearWorkshop(game);
+        });
+        this.els.gearBag.appendChild(btn);
+      }
+
+      // 數字／運算牌庫
+      this.els.cardBag.innerHTML = '';
+      if (!game.save.cards.length) {
+        this.els.cardBag.innerHTML = '<span class="choice-desc">牌庫空了，進關卡打怪就會掉落數字與運算牌！</span>';
+      } else {
+        for (const c of game.save.cards) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `math-card ${c.kind}`;
+          btn.textContent = c.val;
+          btn.disabled = !def;
+          btn.addEventListener('click', () => {
+            if (!def) return;
+            game.insertCardToCollection(this.workshopTab, targetId, this.selectedStatKey, c.uid);
+            this.renderGearWorkshop(game);
+          });
+          this.els.cardBag.appendChild(btn);
+        }
+      }
+    }
+
     syncAll(game) {
       this.updateHud(game);
     }
@@ -609,8 +790,11 @@
       const envTags = [];
       if (p.inSwamp) envTags.push('沼澤減速');
       if (p.inPoison) envTags.push('毒霧中毒');
-      if (p.inIce) envTags.push('冰雪緩攻');
-      if (p.paralyzeTimer > 0) envTags.push('雷擊麻痺');
+      if (p.inIce || p.chillTimer > 0) envTags.push('緩攻');
+      if (p.paralyzeTimer > 0) envTags.push('麻痺');
+      if (p.stunTimer > 0) envTags.push('暈眩');
+      if (p.bleedTimer > 0) envTags.push('出血');
+      if (p.burnTimer > 0) envTags.push('燃燒');
       const terrainNames = (stage.terrains || [])
         .map((k) => PGS.Gear.TERRAINS?.[k]?.label || k)
         .join('、');

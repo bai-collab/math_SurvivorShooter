@@ -179,10 +179,27 @@
 
       // 怪物實例池
       this.enemyPools = {
-        crawler: createPool(this.scene, textures.crawler, 320, 1.25, 1.25, true),
-        runner: createPool(this.scene, textures.runner, 220, 1.35, 1.5, true),
-        tank: createPool(this.scene, textures.tank, 120, 1.95, 1.95, true),
+        crawler: createPool(this.scene, textures.crawler, 220, 1.25, 1.25, true),
+        runner: createPool(this.scene, textures.runner, 160, 1.35, 1.5, true),
+        tank: createPool(this.scene, textures.tank, 100, 1.95, 1.95, true),
         elite: createPool(this.scene, textures.elite, 40, 2.35, 2.35, true),
+        dagger: createPool(this.scene, textures.dagger, 260, 1.35, 1.5, true),
+        blade: createPool(this.scene, textures.blade, 180, 1.65, 1.65, true),
+        spear: createPool(this.scene, textures.spear, 220, 1.5, 1.5, true),
+        archer: createPool(this.scene, textures.archer, 40, 1.5, 1.65, true),
+        slinger: createPool(this.scene, textures.slinger, 40, 1.5, 1.65, true),
+        mage_fire: createPool(this.scene, textures.mage_fire, 24, 1.7, 1.85, true),
+        mage_ice: createPool(this.scene, textures.mage_ice, 24, 1.7, 1.85, true),
+        mage_thunder: createPool(this.scene, textures.mage_thunder, 24, 1.7, 1.85, true),
+      };
+
+      // 敵方遠程投射物池
+      this.enemyProjPools = {
+        e_arrow: createPool(this.scene, textures.e_arrow, 80, 0.8, 0.65, false),
+        e_stone: createPool(this.scene, textures.e_stone, 80, 0.65, 0.65, false),
+        e_fire: createPool(this.scene, textures.e_fire, 80, 0.78, 0.78, false),
+        e_ice: createPool(this.scene, textures.e_ice, 80, 0.78, 0.78, false),
+        e_thunder: createPool(this.scene, textures.e_thunder, 80, 0.78, 0.78, false),
       };
 
       // 子彈實例池
@@ -328,7 +345,8 @@
       this.shadowPool.setMatrixAt(shadowIdx++, dummy.matrix);
 
       // 怪物按類型分批寫入 InstancedMesh
-      const enemyCounts = { crawler: 0, runner: 0, tank: 0, elite: 0 };
+      const enemyCounts = {};
+      for (const k of Object.keys(this.enemyPools)) enemyCounts[k] = 0;
       const normalColor = new THREE.Color(0xffffff);
       const flashColor = new THREE.Color(0xffb8a8);
 
@@ -385,6 +403,26 @@
 
       for (const [type, pool] of Object.entries(this.projPools)) {
         pool.count = projCounts[type];
+        pool.instanceMatrix.needsUpdate = true;
+      }
+
+      // 敵方遠程投射物分批寫入
+      const eProjCounts = { e_arrow: 0, e_stone: 0, e_fire: 0, e_ice: 0, e_thunder: 0 };
+      const eProjs = state.enemyProjectiles || [];
+      for (let i = 0; i < eProjs.length; i++) {
+        const ep = eProjs[i];
+        const pool = this.enemyProjPools[ep.sprite];
+        const idx = eProjCounts[ep.sprite];
+        if (!pool || idx >= pool.instanceMatrix.count) continue;
+        dummy.position.set(ep.x, 0.65, ep.z);
+        dummy.rotation.set(TILT_X, 0, ep.angle || 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        pool.setMatrixAt(idx, dummy.matrix);
+        eProjCounts[ep.sprite]++;
+      }
+      for (const [type, pool] of Object.entries(this.enemyProjPools)) {
+        pool.count = eProjCounts[type];
         pool.instanceMatrix.needsUpdate = true;
       }
 

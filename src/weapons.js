@@ -529,11 +529,38 @@
     return best;
   }
 
+  function getWeaponCardStats(def) {
+    const slots = [];
+    if (def.bounces > 0) {
+      slots.push({ key: 'bounces', label: '彈跳次數', unit: '次', base: def.bounces, min: 0, max: 15, round: true });
+    } else if (def.pellets > 1) {
+      slots.push({ key: 'pellets', label: '彈丸數量', unit: '顆', base: def.pellets, min: 1, max: 24, round: true });
+    } else if (def.chainCount > 0) {
+      slots.push({ key: 'chainCount', label: '電弧連鎖', unit: '次', base: def.chainCount, min: 1, max: 18, round: true });
+    } else if (def.pierce > 1) {
+      slots.push({ key: 'pierce', label: '貫穿數', unit: '隻', base: def.pierce, min: 1, max: 30, round: true });
+    } else {
+      slots.push({ key: 'damage', label: '基礎傷害', unit: '', base: def.damage, min: 2 });
+    }
+
+    if (def.magSize > 0) {
+      slots.push({ key: 'magSize', label: '裝填彈數', unit: '發', base: def.magSize, min: 1, max: 80, round: true });
+    } else if (def.splashRadius > 0) {
+      slots.push({ key: 'splashRadius', label: '爆炸半徑', unit: '', base: def.splashRadius, min: 0.8 });
+    } else if (!slots.some((s) => s.key === 'damage')) {
+      slots.push({ key: 'damage', label: '基礎傷害', unit: '', base: def.damage, min: 2 });
+    } else {
+      slots.push({ key: 'ratePct', label: '射速加成', unit: '%', base: 0, min: -60, max: 200 });
+    }
+    return slots;
+  }
+
   PGS.Weapons = {
     CATEGORIES,
     DEFS: WEAPON_DEFS,
     ALL_IDS: Object.keys(WEAPON_DEFS),
     createInstance: createWeaponInstance,
+    getCardStats: getWeaponCardStats,
     findTarget,
   };
 })(window);
