@@ -14,6 +14,8 @@
   <script src="src/weapons.js" defer></script>
   <script src="src/renderer.js" defer></script>
   <script src="src/game.js" defer></script>
+  <script src="src/beishewei-map-data.js" defer></script>
+  <script src="src/explore.js" defer></script>
   <script src="src/ui.js" defer></script>
   <script src="src/main.js" defer></script>
 </head>
@@ -73,6 +75,7 @@
       <h3>局外改造商店</h3>
       <div id="upgrade-list" class="upgrade-list"></div>
 
+      <button id="open-explore-btn" class="secondary-btn" type="button" style="margin-bottom:10px">嘉義北社尾社區探索（解鎖武器與符文）</button>
       <button id="open-gear-btn" class="secondary-btn" type="button" style="margin-bottom:10px">裝備 / 武器 / 符文 算式工坊</button>
       <button id="start-btn" class="primary-btn" type="button">開始生存</button>
     </div>
@@ -140,8 +143,59 @@
     <div class="panel narrow">
       <h2>任務結束</h2>
       <div id="go-stats" class="go-stats"></div>
+      <button id="go-explore-btn" class="secondary-btn" type="button" style="margin-bottom:8px">前往北社尾社區探索（免費 +1 次）</button>
       <button id="retry-btn" class="primary-btn" type="button">再戰一場</button>
       <button id="back-menu-btn" class="secondary-btn" type="button">返回武器選單</button>
+    </div>
+  </div>
+
+  <!-- 嘉義市西區北社尾社區探索 -->
+  <div id="explore-overlay" class="overlay hidden">
+    <div class="panel explore-panel">
+      <div class="explore-header">
+        <div>
+          <h2 style="margin:0">嘉義市西區・北社尾社區探索</h2>
+          <p class="subtitle" style="margin:4px 0 0">自由散步不扣次數；走近據點玩小遊戲，即可解鎖 14 把武器與 4 種符文！</p>
+        </div>
+        <button id="close-explore-btn" class="secondary-btn" type="button" style="width:auto;padding:8px 14px">返回選單</button>
+      </div>
+
+      <div class="meta-bar" style="margin-bottom:10px">
+        <span id="explore-tickets">免費探索券：1 次</span>
+        <span id="explore-gold">金幣：0</span>
+        <span id="explore-progress">社區解鎖進度：0 / 18</span>
+      </div>
+
+      <div class="explore-body">
+        <div class="explore-map-wrap">
+          <div class="explore-canvas-box">
+            <canvas id="explore-canvas" width="480" height="350"></canvas>
+            <div class="explore-zoom-bar">
+              <button id="explore-zoom-in" class="explore-zoom-btn" type="button" title="放大地圖">＋</button>
+              <button id="explore-zoom-out" class="explore-zoom-btn" type="button" title="縮小地圖">－</button>
+              <button id="explore-zoom-reset" class="explore-zoom-btn" type="button" title="重置視野 / 回到主角">⌖</button>
+            </div>
+          </div>
+          <div id="explore-quick-list" class="explore-quick-list"></div>
+        </div>
+        <div class="explore-info-card">
+          <h3 id="explore-loc-title" style="margin-top:0">漫步在北社尾社區</h3>
+          <p id="explore-loc-meta" class="subtitle" style="margin:0 0 8px"></p>
+          <p id="explore-loc-desc" class="explore-desc"></p>
+          <div id="explore-loc-rewards" class="explore-rewards"></div>
+          <button id="explore-action-btn" class="primary-btn" type="button" style="margin-top:auto">請先走到社區據點旁</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 據點小遊戲視窗 -->
+    <div id="explore-mg-modal" class="overlay hidden" style="background:rgba(12,8,24,0.86)">
+      <div class="panel narrow">
+        <h2 id="explore-mg-title" style="margin-top:0">社區小遊戲</h2>
+        <p id="explore-mg-hint" class="subtitle"></p>
+        <div id="explore-mg-stage"></div>
+        <button id="explore-mg-cancel-btn" class="secondary-btn" type="button" style="margin-top:12px">先離開回到地圖</button>
+      </div>
     </div>
   </div>
 </body>

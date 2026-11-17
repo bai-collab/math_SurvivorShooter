@@ -40,6 +40,7 @@
       gearBag: [g1, g2],
       unlockedWeapons: DEFAULT_UNLOCKED_WEAPONS.slice(),
       unlockedRunes: DEFAULT_UNLOCKED_RUNES.slice(),
+      freeExplores: 1,
       weaponCards: {},
       runeCards: {},
       cards: [
@@ -71,6 +72,7 @@
           gearBag: Array.isArray(parsed.gearBag) ? parsed.gearBag.map((g) => PGS.Gear.normalizeGearItem(g)) : def.gearBag,
           unlockedWeapons: Array.isArray(parsed.unlockedWeapons) && parsed.unlockedWeapons.length ? parsed.unlockedWeapons : def.unlockedWeapons,
           unlockedRunes: Array.isArray(parsed.unlockedRunes) && parsed.unlockedRunes.length ? parsed.unlockedRunes : def.unlockedRunes,
+          freeExplores: typeof parsed.freeExplores === 'number' ? Math.max(0, parsed.freeExplores) : 1,
           weaponCards: parsed.weaponCards && typeof parsed.weaponCards === 'object' ? parsed.weaponCards : {},
           runeCards: parsed.runeCards && typeof parsed.runeCards === 'object' ? parsed.runeCards : {},
           cards: Array.isArray(parsed.cards) ? parsed.cards : def.cards,
@@ -272,6 +274,67 @@
       this.save.unlockedRunes.push(id);
       writeSave(this.save);
       return true;
+    }
+
+    getExploreCost() {
+      return 50;
+    }
+
+    canStartExploreMiniGame() {
+      return (this.save.freeExplores || 0) > 0 || this.save.gold >= this.getExploreCost();
+    }
+
+    consumeExploreCost() {
+      if ((this.save.freeExplores || 0) > 0) {
+        this.save.freeExplores -= 1;
+        writeSave(this.save);
+        return 'free';
+      }
+      const cost = this.getExploreCost();
+      if (this.save.gold >= cost) {
+        this.save.gold -= cost;
+        writeSave(this.save);
+        return 'gold';
+      }
+      return null;
+    }
+
+    grantExploreBonus() {
+      const bonusGold = 30;
+      this.save.gold += bonusGold;
+      const uid = this.save.nextUid++;
+      const card = Math.random() < 0.65
+        ? { uid, kind: 'num', val: 1 + Math.floor(Math.random() * 6) }
+        : { uid, kind: 'op', val: ['+', '-', '×'][Math.floor(Math.random() * 3)] };
+      this.save.cards.push(card);
+      writeSave(this.save);
+      return { bonusGold, card };
+    }
+
+    grantExploreSupply(supplyType) {
+      const bonusGold = 35;
+      this.save.gold += bonusGold;
+      if (supplyType === 'gear') {
+        const types = ['weapon', 'shield', 'glove', 'boot'];
+        const t = types[Math.floor(Math.random() * types.length)];
+        const tiers = ['basic', 'fine', 'fine'];
+        const tier = tiers[Math.floor(Math.random() * tiers.length)];
+        const gear = PGS.Gear.createGearItem(t, this.save.nextUid++, tier);
+        this.save.gearBag.push(gear);
+        writeSave(this.save);
+        return { bonusGold, gear };
+      }
+      const uid = this.save.nextUid++;
+      const card = supplyType === 'op_card'
+        ? { uid, kind: 'op', val: ['+', '-', '×'][Math.floor(Math.random() * 3)] }
+        : supplyType === 'num_card'
+          ? { uid, kind: 'num', val: 2 + Math.floor(Math.random() * 8) }
+          : (Math.random() < 0.5
+            ? { uid, kind: 'num', val: 2 + Math.floor(Math.random() * 8) }
+            : { uid, kind: 'op', val: ['+', '-', '×'][Math.floor(Math.random() * 3)] });
+      this.save.cards.push(card);
+      writeSave(this.save);
+      return { bonusGold, card };
     }
 
     _evalSlotStat(statDef, cards) {
@@ -1693,6 +1756,7 @@
     finishRun() {
       this.stateName = 'gameover';
       this.save.gold += this.runGold;
+      this.save.freeExplores = (this.save.freeExplores || 0) + 1;
       this.save.bestTime = Math.max(this.save.bestTime, Math.floor(this.elapsed));
       this.save.bestKills = Math.max(this.save.bestKills, this.kills);
       writeSave(this.save);

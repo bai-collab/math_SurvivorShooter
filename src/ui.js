@@ -44,6 +44,7 @@
         metaGold: document.getElementById('meta-gold'),
         metaBest: document.getElementById('meta-best'),
         upgradeList: document.getElementById('upgrade-list'),
+        openExploreBtn: document.getElementById('open-explore-btn'),
         openGearBtn: document.getElementById('open-gear-btn'),
         startBtn: document.getElementById('start-btn'),
 
@@ -69,6 +70,7 @@
 
         gameoverOverlay: document.getElementById('gameover-overlay'),
         goStats: document.getElementById('go-stats'),
+        goExploreBtn: document.getElementById('go-explore-btn'),
         retryBtn: document.getElementById('retry-btn'),
         backMenuBtn: document.getElementById('back-menu-btn'),
 
@@ -125,6 +127,27 @@
         game.stateName = 'menu';
         this.renderMenu(game);
       });
+
+      if (PGS.CommunityExplore) {
+        this.explore = new PGS.CommunityExplore(game, this);
+      }
+
+      if (this.els.openExploreBtn) {
+        this.els.openExploreBtn.addEventListener('click', () => {
+          if (this.explore) this.explore.open();
+        });
+      }
+
+      if (this.els.goExploreBtn) {
+        this.els.goExploreBtn.addEventListener('click', () => {
+          this.els.gameoverOverlay.classList.add('hidden');
+          this.els.hud.classList.add('hidden');
+          this.els.menuOverlay.classList.remove('hidden');
+          game.stateName = 'menu';
+          this.renderMenu(game);
+          if (this.explore) this.explore.open();
+        });
+      }
 
       this.els.openGearBtn.addEventListener('click', () => {
         this.els.menuOverlay.classList.add('hidden');
@@ -190,6 +213,11 @@
     renderMenu(game) {
       this.els.metaGold.textContent = `金幣：${game.save.gold}`;
       this.els.metaBest.textContent = `最佳生存：${formatTime(game.save.bestTime)} ｜ 最高擊殺：${game.save.bestKills}`;
+      if (this.els.openExploreBtn) {
+        const free = game.save.freeExplores || 0;
+        const unlockedCount = (game.save.unlockedWeapons.length - 4) + (game.save.unlockedRunes.length - 2);
+        this.els.openExploreBtn.textContent = `嘉義北社尾社區探索（已解鎖 ${Math.max(0, unlockedCount)}/18 ｜ 免費券 ${free} 次）`;
+      }
 
       // 關卡選擇
       this.els.stageGrid.innerHTML = '';
@@ -795,7 +823,11 @@
         <div>總擊殺數：<strong>${game.kills}</strong></div>
         <div>到達等級：<strong>LV ${game.player.level}</strong></div>
         <div>本局獲得金幣：<strong>+${game.runGold}</strong>（總計 ${game.save.gold}）</div>
+        <div>社區探索券：<strong>+1 次</strong>（目前共 ${game.save.freeExplores || 0} 次）</div>
       `;
+      if (this.els.goExploreBtn) {
+        this.els.goExploreBtn.textContent = `前往北社尾社區探索（免費 ${game.save.freeExplores || 0} 次）`;
+      }
       this.els.gameoverOverlay.classList.remove('hidden');
     }
 
