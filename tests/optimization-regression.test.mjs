@@ -471,7 +471,7 @@ function loadRendererLabels() {
   sb.PGS = {};
   vm.createContext(sb);
   vm.runInContext(readSource('renderer.js'), sb, { filename: 'src/renderer.js' });
-  return { labels: sb.PGS.RendererLabels, disposed };
+  return { labels: sb.PGS.RendererLabels, disposed, PGS: sb.PGS };
 }
 
 test('答案標籤與稻穀數字標籤的材質關閉深度測試，renderOrder 高於所有世界物件池與傷害數字', () => {
@@ -712,5 +712,165 @@ test('F6：窄螢幕的答案踏板全排在玩家下方，距離玩家 7 以上
         }
       }
     }
+  }
+});
+
+// ── F7：Gemini 外審對 F5／F6 的三項邊界問題（先重現、再修） ──
+const F7_ARENA_LIMIT = 108;
+
+// 用真實 PixelRenderer 的版面判斷方法（this 只需要相機、視窗像素與答案標籤），組成給 game 用的 renderer 替身
+function makeF7Renderer(R, pxW, pxH, player) {
+  const halfH = R.labels.VIEW_SIZE;
+  return {
+    camera: { right: halfH * (pxW / pxH), top: halfH, position: { x: player.x, z: player.z + R.labels.CAM_OFFSET_Z } },
+    viewPx: { w: pxW, h: pxH },
+    answerPadLabels: Array.from({ length: 4 }, () => R.labels.createTextLabel('', 'pad')),
+    addShake() {},
+    answerLayoutView: R.PGS.PixelRenderer.prototype.answerLayoutView,
+    answerLabelItems: R.PGS.PixelRenderer.prototype.answerLabelItems,
+    answerPadsFitView: R.PGS.PixelRenderer.prototype.answerPadsFitView,
+  };
+}
+
+function padInsideArena(pad) {
+  return Math.abs(pad.x) + pad.radius <= F7_ARENA_LIMIT && Math.abs(pad.z) + pad.radius <= F7_ARENA_LIMIT;
+}
+
+function makeF7Player(x, z) {
+  return { x, z, hp: 50, maxHp: 100, speed: 6, magnet: 3.4 };
+}
+
+test('F7-1：窄螢幕踏板圓心加半徑不得超出場地南緣，放不下就改走暫停作答', () => {
+  let worldChecked = 0;
+  let pausedCount = 0;
+  for (const halfW of [3.1, 3.5, 4.2, 5.1, 6.24, 7.59]) {
+    for (const pz of [90, 96, 97, 98, 98.4, 99, 100, 102]) {
+      for (const px of [0, 60, 100, -100, 103]) {
+        const game = makeBare({ player: makeF7Player(px, pz) });
+        game.renderer = { camera: { right: halfW, top: 13.5 }, addShake() {} };
+        for (let n = 0; n < 12; n++) {
+          game.mathMode = 'none';
+          game.startMathQuiz();
+          const where = `halfW ${halfW} 玩家 (${px},${pz})`;
+          if (game.mathMode === 'paused-question') { pausedCount++; continue; }
+          assert.equal(game.mathMode, 'world-question');
+          for (const pad of game.answerPads) {
+            assert.ok(padInsideArena(pad), `${where}：踏板 ${pad.index} 超出場地 (${pad.x.toFixed(2)}, ${pad.z.toFixed(2)}) 半徑 ${pad.radius}`);
+            worldChecked++;
+          }
+        }
+      }
+    }
+  }
+  assert.ok(worldChecked > 100, `實際擺出踏板的檢查數太少：${worldChecked}`);
+  assert.ok(pausedCount > 0, '應該有放不下而暫停作答的情境');
+});
+
+// 在目前會擺出的踏板位置各放一個障礙物，逼 createAnswerPads 走左右微調的候選位置
+function makeF7BlockedGame(player, halfW) {
+  const game = makeBare({ player: makeF7Player(player.x, player.z) });
+  game.renderer = { camera: { right: halfW, top: 13.5 }, addShake() {} };
+  const probe = game.createAnswerPads(['1', '2', '3', '4']);
+  game.terrainZones = probe.map((pad) => ({ kind: 'obstacle', x: pad.x, z: pad.z, radius: 2 }));
+  return game;
+}
+
+test('F7-2：寬螢幕玩家貼南側時，微調候選不會把踏板推出場地；放不下改走暫停作答', () => {
+  const spots = [[0, 107.6], [0, 108], [50, 107.9], [103, 107], [-103, 106], [100, 100], [-100, 100], [0, 97], [20, 105]];
+  let worldChecked = 0;
+  for (const [px, pz] of spots) {
+    for (let n = 0; n < 12; n++) {
+      const game = makeF7BlockedGame({ x: px, z: pz }, 20);
+      game.mathMode = 'none';
+      game.startMathQuiz();
+      if (game.mathMode === 'paused-question') continue;
+      for (const pad of game.answerPads) {
+        assert.ok(padInsideArena(pad), `玩家 (${px},${pz})：踏板 ${pad.index} 被微調到場地外 (${pad.x.toFixed(2)}, ${pad.z.toFixed(2)})`);
+        worldChecked++;
+      }
+    }
+  }
+  assert.ok(worldChecked > 0, '至少要有幾個情境仍能正常擺出踏板');
+});
+
+test('F7-2：寬螢幕玩家貼南側時，踏板不得落在題目橫幅保留區；會被遮擋就改走暫停作答', () => {
+  const R = loadRendererLabels();
+  let worldChecked = 0;
+  for (const [pxW, pxH] of [[800, 600], [1024, 768], [1280, 720], [1920, 1080]]) {
+    for (const [px, pz] of [[0, 97], [0, 102], [0, 107], [100, 100], [-100, 100], [50, 80]]) {
+      for (const blocked of [false, true]) {
+        for (let n = 0; n < 6; n++) {
+          const player = { x: px, z: pz };
+          const game = blocked ? makeF7BlockedGame(player, (R.labels.VIEW_SIZE * pxW) / pxH) : makeBare({ player: makeF7Player(px, pz) });
+          game.renderer = makeF7Renderer(R, pxW, pxH, player);
+          game.mathMode = 'none';
+          game.startMathQuiz();
+          if (game.mathMode === 'paused-question') continue;
+          const cam = game.renderer.camera;
+          const banner = R.labels.answerLabelSafeRect(pxW, pxH).banner;
+          for (const pad of game.answerPads) {
+            const c = projectToScreen([pad.x, 0, pad.z], { cx: px, cz: pz, height: R.labels.CAM_HEIGHT, offset: R.labels.CAM_OFFSET_Z, halfW: cam.right, halfH: cam.top, pxW, pxH });
+            const half = (pad.visualSize / 2 / (2 * cam.right)) * pxW;
+            const rect = { left: c.x - half, right: c.x + half, top: c.y - half, bottom: c.y + half };
+            assert.equal(rectsOverlap(rect, banner), false, `${pxW}x${pxH} 玩家 (${px},${pz})${blocked ? '（有障礙物）' : ''}：踏板 ${pad.index} 被題目橫幅蓋住`);
+            worldChecked++;
+          }
+        }
+      }
+    }
+  }
+  assert.ok(worldChecked > 0, '至少要有幾個情境仍能正常擺出踏板');
+});
+
+test('F7-3：橫向矮視窗（812×375、667×375、896×414）垂直安全區放不下標籤堆疊時，layoutAnswerLabels 回報放不下', () => {
+  const R = loadRendererLabels();
+  const labels = R.labels;
+  const choices = ['38 公分', '40 平方公分', '26 公分', '13 公分'];
+  for (const [pxW, pxH] of [[812, 375], [667, 375], [896, 414]]) {
+    const halfH = labels.VIEW_SIZE;
+    const halfW = halfH * (pxW / pxH);
+    const game = makeBare({ player: makeF7Player(0, 0) });
+    game.renderer = { camera: { right: halfW }, addShake() {} };
+    const pads = game.createAnswerPads(choices);
+    const items = pads.map((pad) => {
+      const label = labels.createTextLabel(pad.label, 'pad');
+      const size = labels.answerLabelSize(label, pad.labelSize);
+      return { x: pad.x, z: pad.z, h: size.h, plateW: size.plateW };
+    });
+    const placed = labels.layoutAnswerLabels(items, { cx: 0, cz: 0, halfW, halfH, pxW, pxH });
+    const where = `${pxW}x${pxH}`;
+    const safe = labels.answerLabelSafeRect(pxW, pxH);
+    const cam = { cx: 0, cz: 0, height: labels.CAM_HEIGHT, offset: labels.CAM_OFFSET_Z, halfW, halfH, pxW, pxH };
+    const rects = placed.map((p, i) => {
+      const c = projectToScreen([p.x, p.y, items[i].z], cam);
+      const w = ((items[i].plateW * p.scale) / (2 * halfW)) * pxW;
+      const h = ((items[i].h * p.scale) / (2 * halfH)) * pxH;
+      return { left: c.x - w / 2, right: c.x + w / 2, top: c.y - h / 2, bottom: c.y + h / 2 };
+    });
+    // 放得下時必須整塊在垂直安全區內、彼此不重疊；放不下就必須明確回報 fits === false
+    if (placed.fits !== false) {
+      rects.forEach((r, i) => {
+        assert.ok(r.top >= safe.top - 0.5 && r.bottom <= safe.bottom + 0.5, `${where}：標籤 ${i} 超出垂直安全區 ${JSON.stringify(r)} 安全區 ${safe.top.toFixed(1)}~${safe.bottom.toFixed(1)}`);
+        for (let j = i + 1; j < rects.length; j++) assert.equal(rectsOverlap(r, rects[j]), false, `${where}：標籤 ${i} 與 ${j} 重疊`);
+      });
+    }
+    assert.equal(placed.fits, false, `${where}：垂直安全區只有 ${(safe.bottom - safe.top).toFixed(1)}px，應回報放不下`);
+  }
+});
+
+test('F7-3：橫向矮視窗開始作答時改走暫停作答；一般視窗仍擺出踏板', () => {
+  const R = loadRendererLabels();
+  for (const [pxW, pxH] of [[812, 375], [667, 375], [896, 414]]) {
+    const game = makeBare({ player: makeF7Player(0, 0) });
+    game.renderer = makeF7Renderer(R, pxW, pxH, { x: 0, z: 0 });
+    game.startMathQuiz();
+    assert.equal(game.mathMode, 'paused-question', `${pxW}x${pxH} 應改走暫停作答`);
+    assert.equal(game.answerPads.length, 0);
+  }
+  for (const [pxW, pxH] of [[800, 600], [1280, 720], [375, 812]]) {
+    const game = makeBare({ player: makeF7Player(0, 0) });
+    game.renderer = makeF7Renderer(R, pxW, pxH, { x: 0, z: 0 });
+    game.startMathQuiz();
+    assert.equal(game.mathMode, 'world-question', `${pxW}x${pxH} 應照常擺出踏板`);
   }
 });

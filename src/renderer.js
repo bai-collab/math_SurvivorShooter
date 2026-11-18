@@ -208,6 +208,8 @@
   const SIN_T = Math.sin(TILT_X);
   const ANSWER_LABEL_BASE_Y = 3.25;
   const ANSWER_LABEL_MIN_HEIGHT = 1.1;
+  // 垂直安全區縮到標籤高度的這個比例以下就不再縮，視為放不下
+  const ANSWER_LABEL_MIN_SCALE = 0.6;
 
   // 答案標籤的世界尺寸：高度約為舊版的 1.5 倍（800×600 畫面中文字高約 16～20 像素），寬度依底板量測
   function answerLabelSize(label, labelSize) {
@@ -266,6 +268,8 @@
   // 螢幕垂直座標 v = y × cosθ + (z − cz) × SIN_T（θ 為相機俯角；SIN_T 為負，z 越大越靠下）。
   // 回傳每個標籤的 { x, y, scale }：x 會往內夾進視野；底板比視野還寬時整體縮小；
   // 優先放在踏板上方 ANSWER_LABEL_BASE_Y，過近就往上錯開，超出安全範圍或放不下時改往下找空位。
+  // 縮放同時考慮水平寬度與垂直安全高度；回傳陣列的 fits 為 false 表示這個視窗放不下
+  //（垂直安全區小於標籤高度的 ANSWER_LABEL_MIN_SCALE 倍，或標籤堆疊後找不到不重疊的位置），呼叫端應改走暫停作答。
   function layoutAnswerLabels(items, view) {
     const unit = (2 * view.halfH) / view.pxH;
     const safe = answerLabelSafeRect(view.pxW, view.pxH);
@@ -274,8 +278,11 @@
     const vMax = view.halfH - safe.top * unit;
     const vMin = view.halfH - safe.bottom * unit;
     const placed = [];
-    return items.map((it) => {
-      const scale = Math.min(1, (xR - xL) / it.plateW);
+    let fits = true;
+    const result = items.map((it) => {
+      const vScale = (vMax - vMin) / it.h;
+      if (vScale < ANSWER_LABEL_MIN_SCALE) fits = false;
+      const scale = Math.min(1, (xR - xL) / it.plateW, Math.max(vScale, ANSWER_LABEL_MIN_SCALE));
       const w = it.plateW * scale;
       const h = it.h * scale;
       const dx = Math.min(xR - w / 2, Math.max(xL + w / 2, it.x - view.cx));
@@ -294,9 +301,29 @@
           if (free(cand)) { v = cand; found = true; break; }
         }
       }
+      if (!found) fits = false;
       placed.push({ x: dx, v, w, h });
       return { x: view.cx + dx, y: (v - groundV) / COS_T, scale };
     });
+    result.fits = fits;
+    return result;
+  }
+
+  // 地面上的點投影到畫面像素（相機對準 (cx, cz)，垂直座標同 layoutAnswerLabels）
+  function projectGroundPoint(x, z, view) {
+    const v = (z - view.cz) * SIN_T;
+    return {
+      x: (((x - view.cx) / view.halfW + 1) / 2) * view.pxW,
+      y: ((1 - v / view.halfH) / 2) * view.pxH,
+    };
+  }
+
+  // 踏板圓台（以正方形粗估）是否碰到題目橫幅保留區
+  function padOverlapsBanner(pad, view) {
+    const banner = answerLabelSafeRect(view.pxW, view.pxH).banner;
+    const c = projectGroundPoint(pad.x, pad.z, view);
+    const half = ((pad.visualSize || 2.35) / 2 / (2 * view.halfW)) * view.pxW;
+    return c.x - half < banner.right && banner.left < c.x + half && c.y - half < banner.bottom && banner.top < c.y + half;
   }
   const ANIM_STEP = 0.45; // 地面與環境 2 幀動畫的換幀間隔（秒）
   const DECOR_CELL = 5; // 地面裝飾的網格邊長（世界單位）
@@ -840,11 +867,40 @@
       this.shakeTime = Math.max(this.shakeTime, duration);
     }
 
+    // 目前相機與畫面像素組成的版面資訊（相機對準的地面點、正交半視野、畫面像素）
+    answerLayoutView() {
+      const cam = this.camera;
+      return {
+        cx: cam.position.x, cz: cam.position.z - CAM_OFFSET_Z, halfW: cam.right, halfH: cam.top,
+        pxW: this.viewPx.w, pxH: this.viewPx.h,
+      };
+    }
+
+    // 每個要顯示的踏板對應的標籤排版資料（同時把標籤文字畫好）
+    answerLabelItems(pads) {
+      const shown = [];
+      for (const pad of pads) {
+        const label = this.answerPadLabels[pad.index];
+        if (!label || pad.broken) continue;
+        setTextLabel(label, pad.label);
+        const size = answerLabelSize(label, pad.labelSize);
+        shown.push({ label, x: pad.x, z: pad.z, h: size.h, spriteW: size.spriteW, plateW: size.plateW });
+      }
+      return shown;
+    }
+
+    // 這組踏板在目前視窗是否放得下：標籤能整塊排進安全範圍（橫向矮視窗可能放不下），
+    // 且踏板圓台不被題目橫幅蓋住；回傳 false 時 game 會改走暫停作答
+    answerPadsFitView(pads) {
+      const view = this.answerLayoutView();
+      if (!layoutAnswerLabels(this.answerLabelItems(pads), view).fits) return false;
+      return !pads.some((pad) => !pad.broken && padOverlapsBanner(pad, view));
+    }
+
     // 答案踏板與其標籤：踏板貼在地上，標籤排在踏板正上方且彼此不重疊；標籤與材質只在建構時建一次，每幀只更新位置與必要時重畫
     updateAnswerPads(pads) {
       const dummy = this.dummy;
       let count = 0;
-      const shown = [];
       for (const pad of pads) {
         const label = this.answerPadLabels[pad.index];
         if (!label || pad.broken) continue;
@@ -854,16 +910,10 @@
         dummy.scale.set(visualSize, visualSize, 1);
         dummy.updateMatrix();
         this.answerPadPool.setMatrixAt(count++, dummy.matrix);
-        setTextLabel(label, pad.label);
-        const size = answerLabelSize(label, pad.labelSize);
-        shown.push({ label, x: pad.x, z: pad.z, h: size.h, spriteW: size.spriteW, plateW: size.plateW });
       }
       // 依實際相機位置與畫面像素排版：標籤夾在安全範圍內（避開題目橫幅、HUD、搖桿與武器欄）且彼此不重疊
-      const cam = this.camera;
-      const placed = layoutAnswerLabels(shown, {
-        cx: cam.position.x, cz: cam.position.z - CAM_OFFSET_Z, halfW: cam.right, halfH: cam.top,
-        pxW: this.viewPx.w, pxH: this.viewPx.h,
-      });
+      const shown = this.answerLabelItems(pads);
+      const placed = layoutAnswerLabels(shown, this.answerLayoutView());
       for (let i = 0; i < this.answerPadLabels.length; i++) this.answerPadLabels[i].sprite.visible = false;
       shown.forEach((it, i) => {
         const p = placed[i];

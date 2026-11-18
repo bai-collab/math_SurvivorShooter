@@ -5,8 +5,8 @@
 
   const SAVE_KEY = 'pgs_save_v1';
   const ARENA_LIMIT = 108;
-  // 窄螢幕答案踏板（排在玩家下方兩列）離玩家最遠的 z 距離，用來判斷場地南側放不放得下
-  const NARROW_PAD_MAX_Z = 8.6;
+  // 答案踏板的圓台半徑；踏板圓心加半徑必須都在場地內
+  const ANSWER_PAD_RADIUS = 1.15;
 
   const ENEMY_ARCHETYPES = {
     crawler: { hp: 28, speed: 3.1, radius: 0.55, halfH: 0.62, shadowScale: 0.85, damage: 8, atkCd: 0.7, xp: 10, goldChance: 0.08, runeChance: 0.025, gearChance: 0.018, cardChance: 0.05 },
@@ -460,11 +460,17 @@
       const atTightCorner = halfViewWidth < 8 && Math.abs(this.player.x) > 96 && Math.abs(this.player.z) > 96;
       const tooNarrowForPads = halfViewWidth < 3.1;
       // 窄螢幕踏板只排在玩家下方；貼近南側或東西邊界放不下時改暫停作答
-      const narrowCannotFit = halfViewWidth < 8 && !this.narrowPadsFit();
-      const paused = this.save.mathSettings?.pauseOnAnswer === true || atTightCorner || tooNarrowForPads || narrowCannotFit;
+      const narrowCannotFit = halfViewWidth < 8 && !this.narrowPadsFit(question.choices.length);
+      let paused = this.save.mathSettings?.pauseOnAnswer === true || atTightCorner || tooNarrowForPads || narrowCannotFit;
+      let pads = paused ? [] : this.createAnswerPads(question.choices);
+      // 踏板實際擺出後再確認：圓台要整個在場地內，且標籤與踏板在目前視窗放得下、不被題目橫幅蓋住；否則改走暫停作答
+      if (!paused && !this.answerPadsUsable(pads)) {
+        paused = true;
+        pads = [];
+      }
       this.mathCurrent = { question, attempts: 0, timeLeft: band === 'low' ? 20 : 15, paused, completed: false, wrongChoices: [] };
       this.mathMode = paused ? 'paused-question' : 'world-question';
-      this.answerPads = paused ? [] : this.createAnswerPads(question.choices);
+      this.answerPads = pads;
       const topic = this.mathRun.topics[question.topic] || (this.mathRun.topics[question.topic] = {
         label: question.topicLabel, questions: 0, attempts: 0, firstTryCorrect: 0,
       });
@@ -478,6 +484,12 @@
     // 窄螢幕（半視野 < 8）答案踏板全排在玩家下方兩列：外列左右各一、內列靠中間，距離玩家 7.2～8.6。
     // 只排下方的原因：z 為負（畫面上方）的踏板，標籤會落在 DOM 題目橫幅底下被整個蓋住。
     // 下方放不下時（玩家太靠南側或東西邊界）由 startMathQuiz 改走暫停作答，見 narrowPadsFit。
+    // 窄螢幕踏板左右間距：夾在 1.2～4.25 之間，讓標籤與踏板都留在半視野內
+    narrowPadXOffset(halfViewWidth) {
+      const compactSize = 1.5;
+      return Math.min(4.25, Math.max(1.2, halfViewWidth - compactSize - 0.5));
+    }
+
     narrowPadSlots(count, xOffset) {
       const px = this.player.x;
       const pz = this.player.z;
@@ -494,10 +506,23 @@
       return slots.slice(0, count).map((slot) => ({ x: px + slot.x, z: pz + slot.z }));
     }
 
-    // 窄螢幕的下方兩列踏板是否都放得進場地（含踏板半徑與一點邊界空隙）
-    narrowPadsFit() {
-      const limit = ARENA_LIMIT - 1;
-      return Math.abs(this.player.x) + 4.25 <= limit && this.player.z + NARROW_PAD_MAX_Z <= limit;
+    // 窄螢幕的下方兩列踏板是否都放得進場地：用實際會擺出的位置，圓心加踏板半徑都要在場地內
+    narrowPadsFit(count = 4) {
+      const halfViewWidth = this.renderer?.camera?.right || 20;
+      const slots = this.narrowPadSlots(count, this.narrowPadXOffset(halfViewWidth));
+      return slots.every((slot) => this.padInsideArena(slot.x, slot.z));
+    }
+
+    // 踏板圓心加半徑是否整個在場地內
+    padInsideArena(x, z) {
+      const limit = ARENA_LIMIT - ANSWER_PAD_RADIUS;
+      return Math.abs(x) <= limit && Math.abs(z) <= limit;
+    }
+
+    // 踏板是否都能用：圓台在場地內，且 renderer（若有提供）確認標籤與踏板在目前視窗放得下
+    answerPadsUsable(pads) {
+      if (!pads.every((pad) => this.padInsideArena(pad.x, pad.z))) return false;
+      return this.renderer?.answerPadsFitView?.(pads) !== false;
     }
 
     createAnswerPads(choices) {
@@ -529,14 +554,14 @@
         else if (this.player.x < -96) lateralAngles = right;
         else lateralAngles = [right[0], left[0], right[1], left[1]];
       }
-      const xOffset = Math.min(4.25, Math.max(1.2, halfViewWidth - compactSize - 0.5));
+      const xOffset = this.narrowPadXOffset(halfViewWidth);
       const narrowSlots = narrow ? this.narrowPadSlots(count, xOffset) : null;
       for (let i = 0; i < count; i++) {
         const t = count === 1 ? 0 : i / (count - 1) - 0.5;
         const radius = 7.2 + i * 0.35;
         let x;
         let z;
-        const padRadius = 1.15;
+        const padRadius = ANSWER_PAD_RADIUS;
         if (narrowSlots) {
           x = narrowSlots[i].x;
           z = narrowSlots[i].z;
@@ -545,14 +570,16 @@
           x = this.player.x + Math.cos(angle) * radius;
           z = this.player.z + Math.sin(angle) * radius;
           // 先在同一圈上左右微調角度找沒有障礙物的位置（先要求寬鬆的距離，再退到只要不重疊）；
-          // 都找不到時，下面的 clearObstaclesAroundPad 會把擋住的障礙物推開，保證每個踏板都走得到。
+          // 微調候選與原位置都必須整個在場地內，否則視為被擋住（貼場地邊界時不會被推出場外）。
+          // 都找不到時，下面的 clearObstaclesAroundPad 會把擋住的障礙物推開，保證每個踏板都走得到；
+          // 若原位置本身出界又找不到場內候選，startMathQuiz 會改走暫停作答。
           const nudges = [0.28, -0.28, 0.56, -0.56, 0.84, -0.84];
           for (const clearance of [1.5, 0.6]) {
-            if (!this.padBlockedByObstacle(x, z, clearance)) break;
+            if (this.padInsideArena(x, z) && !this.padBlockedByObstacle(x, z, clearance)) break;
             const found = nudges.find((delta) => {
               const nx = this.player.x + Math.cos(angle + delta) * radius;
               const nz = this.player.z + Math.sin(angle + delta) * radius;
-              if (this.padBlockedByObstacle(nx, nz, clearance)) return false;
+              if (!this.padInsideArena(nx, nz) || this.padBlockedByObstacle(nx, nz, clearance)) return false;
               x = nx;
               z = nz;
               return true;
