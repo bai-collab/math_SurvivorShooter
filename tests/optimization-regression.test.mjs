@@ -874,3 +874,39 @@ test('F7-3：橫向矮視窗開始作答時改走暫停作答；一般視窗仍�
     assert.equal(game.mathMode, 'world-question', `${pxW}x${pxH} 應照常擺出踏板`);
   }
 });
+
+// ── F8：撿到第 5 顆稻穀觸發稻浪、清掉場上稻穀時，updatePickups 不可讀到已移除的位置（實機當機：bobPhase of undefined） ──
+test('F8：撿到第 5 顆符合規則的稻穀時，同一幀清掉其他稻穀不會讓撿取迴圈當機', () => {
+  const game = makeBare();
+  game.startHarvestTask();
+  const rule = game.mathHarvest.rule;
+  const valid = rule.sampleNumbers.find((n) => rule.test(n));
+  game.mathHarvest.collected = 4;
+  game.pickups = [
+    { kind: 'gem', value: 1, x: 30, z: 0, bobPhase: 0 },
+    { kind: 'math-grain', id: 1, value: valid, x: 25, z: 5, bobPhase: 0 },
+    { kind: 'math-grain', id: 2, value: valid, x: -25, z: 5, bobPhase: 0 },
+    { kind: 'math-grain', id: 3, value: valid, x: 0, z: 0, bobPhase: 0 },
+  ];
+  assert.doesNotThrow(() => game.updatePickups(0.016));
+  assert.equal(game.mathHarvest.active, false, '第 5 顆觸發稻浪、任務結束');
+  assert.ok(game.pickups.every((pk) => pk.kind !== 'math-grain'), '場上剩下的稻穀被清掉');
+  assert.ok(game.pickups.some((pk) => pk.kind === 'gem'), '其他掉落物保留');
+  assert.ok(game.pickups.every((pk) => pk && typeof pk.bobPhase === 'number'));
+});
+
+// ── F8：index.html 本機程式檔與樣式檔帶同一個版本參數，避免 GitHub Pages 快取造成新舊檔混用 ──
+test('F8：index.html 每個本機 src/*.js 與 style.css 都帶同一個 ?v= 版本參數，且 src/ 下所有程式檔都有載入', async () => {
+  const { readdirSync } = await import('node:fs');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const local = Array.from(html.matchAll(/(?:src|href)="((?:src\/[a-z-]+\.js)|style\.css)(\?v=([^"]+))?"/g));
+  assert.ok(local.length > 0);
+  const versions = new Set(local.map((m) => m[3]));
+  assert.equal(versions.has(undefined), false, `有本機檔沒帶版本參數：${local.filter((m) => !m[3]).map((m) => m[1]).join(', ')}`);
+  assert.equal(versions.size, 1, `版本參數不一致：${[...versions].join(', ')}`);
+  const loaded = new Set(local.map((m) => m[1]));
+  const dir = new URL('../src/', import.meta.url);
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+    assert.ok(loaded.has(`src/${file}`), `src/${file} 沒有在 index.html 載入`);
+  }
+});

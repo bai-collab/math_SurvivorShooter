@@ -242,7 +242,8 @@ test('收集 6、12、18 張圖鑑時各發一次獎勵，稱號保存在存檔'
 
 test('網頁依序載入探索題庫，圖鑑按鈕與畫面控制項都有 DOM 對應', () => {
   const html = read('../index.html');
-  const scripts = Array.from(html.matchAll(/src="([^"]+\.js)"/g), (match) => match[1]);
+  // 本機程式檔帶 ?v= 版本參數避免快取混版；解析時只取路徑部分，順序斷言不變。
+  const scripts = Array.from(html.matchAll(/src="([^"?]+\.js)(?:\?[^"]*)?"/g), (match) => match[1]);
   assert.ok(scripts.indexOf('src/explore-quest.js') < scripts.indexOf('src/explore.js'));
   for (const id of ['community-title', 'explore-atlas-btn', 'explore-atlas-modal', 'explore-atlas-grid', 'explore-atlas-close-btn']) {
     assert.match(html, new RegExp(`id="${id}"`));

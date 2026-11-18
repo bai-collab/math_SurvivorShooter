@@ -799,11 +799,18 @@
       this.ui.showMathToast(`稻穀豐收開始！${this.mathHarvest.rule.label}，收滿 5 個數字稻穀。`);
     }
 
+    // 清掉場上沒撿的數字稻穀。可能在 updatePickups 迴圈中途被呼叫（撿到第 5 顆觸發稻浪），
+    // 所以先標記 removed，讓迴圈跳過已清掉的項目，再換成過濾後的陣列。
+    clearMathGrains() {
+      for (const pk of this.pickups) if (pk.kind === 'math-grain') pk.removed = true;
+      this.pickups = this.pickups.filter((pk) => pk.kind !== 'math-grain');
+    }
+
     finishHarvestTask() {
       if (!this.mathHarvest.active) return;
       const collected = this.mathHarvest.collected;
       this.mathHarvest.active = false;
-      this.pickups = this.pickups.filter((pk) => pk.kind !== 'math-grain');
+      this.clearMathGrains();
       this.ui.hideHarvestTask();
       this.ui.showMathToast(`稻穀豐收結束：收集到 ${collected} / 5 個符合的數字。`);
     }
@@ -833,9 +840,9 @@
       const x = this.player.x;
       const z = this.player.z;
       this.mathHarvest.active = false;
-      this.pickups = this.pickups.filter((pk) => pk.kind !== 'math-grain');
+      this.clearMathGrains();
       this.ui.hideHarvestTask();
-      this.mathHarvestWave = { x, z, timer: 0.9, duration: 0.9, radius: 30 };
+      this.mathHarvestWave ={ x, z, timer: 0.9, duration: 0.9, radius: 30 };
       this.renderer.addShake(0.9, 0.35);
       this.audio.playExplosion();
       for (const enemy of this.enemies.slice()) {
@@ -2613,8 +2620,12 @@
 
     updatePickups(dt) {
       const mag2 = this.player.magnet * this.player.magnet;
-      for (let i = this.pickups.length - 1; i >= 0; i--) {
-        const pk = this.pickups[i];
+      // 走這一幀開始時的副本：撿取的副作用（例如稻浪清掉稻穀、擊倒怪物掉落新物品）可能在迴圈中途改寫 this.pickups，
+      // 直接用索引會讀到已移除的位置而當機（bobPhase of undefined）。
+      const list = this.pickups.slice();
+      for (let i = list.length - 1; i >= 0; i--) {
+        const pk = list[i];
+        if (!pk || pk.removed) continue;
         pk.bobPhase += dt * 5;
         const dx = this.player.x - pk.x;
         const dz = this.player.z - pk.z;
@@ -2628,7 +2639,10 @@
         }
 
         if (d2 < 0.7) {
-          this.pickups.splice(i, 1);
+          const idx = this.pickups.indexOf(pk);
+          if (idx < 0) continue;
+          this.pickups.splice(idx, 1);
+          pk.removed = true;
           if (pk.kind === 'math-grain') {
             this.collectMathGrain(pk);
           } else if (pk.kind === 'gem') {
