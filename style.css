@@ -224,6 +224,101 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
+.math-combo-hud {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 10px;
+  color: #fff2c6;
+  background: rgba(24, 18, 42, 0.94);
+  border: 2px solid #ff9a6a;
+  box-shadow: 2px 2px 0 rgba(14, 10, 26, 0.9);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#math-combo-count {
+  color: #ffd058;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+#math-combo-bonus {
+  color: #a8e8d8;
+}
+
+.boss-hud {
+  align-self: center;
+  width: min(520px, 78vw);
+  padding: 6px 10px 8px;
+  color: #fff2c6;
+  background: rgba(24, 18, 42, 0.94);
+  border: 2px solid #ff5a5a;
+  box-shadow: 3px 3px 0 rgba(14, 10, 26, 0.9);
+}
+
+.boss-hud-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.boss-hud-heading span {
+  color: #ffd058;
+  text-align: right;
+}
+
+.boss-hp-wrap {
+  height: 12px;
+  overflow: hidden;
+  background: #241a34;
+  border: 2px solid #ffe8b4;
+}
+
+#boss-hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #d65648, #ff9a6a);
+  transition: width 0.12s linear;
+}
+
+.boss-warning-banner {
+  position: fixed;
+  z-index: 12;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 92vw;
+  padding: 10px 16px;
+  color: #fff2c6;
+  background: rgba(62, 13, 28, 0.96);
+  border: 3px solid #ff5a5a;
+  box-shadow: 4px 4px 0 rgba(14, 10, 26, 0.9);
+  font-size: clamp(15px, 2.5vw, 22px);
+  font-weight: 700;
+  pointer-events: none;
+  animation: boss-warning-pulse 0.65s steps(2, end) infinite;
+}
+
+#boss-warning-time {
+  min-width: 1.2em;
+  color: #ffd058;
+  font-size: 1.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes boss-warning-pulse {
+  50% { border-color: #ffd058; }
+}
+
 .math-toast {
   bottom: 19%;
   left: 50%;
@@ -621,6 +716,13 @@ h1, h2, h3 {
   font-size: 12px;
   color: #d4cce8;
   line-height: 1.4;
+}
+
+.stage-clear-badge {
+  margin-top: 5px;
+  color: #ffd058;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .upgrade-list {
@@ -1268,6 +1370,28 @@ h1, h2, h3 {
     font-size: 11px;
   }
 
+  .boss-hud {
+    width: 88vw;
+    padding: 5px 8px 6px;
+  }
+
+  .boss-hud-heading {
+    font-size: 11px;
+  }
+
+  .boss-warning-banner {
+    top: 32%;
+    gap: 7px;
+    padding: 8px 10px;
+    font-size: 15px;
+  }
+
+  .math-combo-hud {
+    gap: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
   .math-toast {
     bottom: 22%;
     max-width: 92vw;
@@ -1694,5 +1818,72 @@ h1, h2, h3 {
 
   .weapon-bar {
     max-width: calc(100vw - 130px);
+  }
+}
+
+/* F9 探索地圖分區：目前所在層級標籤、離開校園按鈕、清單的校園群組 */
+.explore-layer-bar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.explore-layer-tag {
+  padding: 3px 8px;
+  background: rgba(24, 18, 42, 0.88);
+  border: 2px solid #594b8c;
+  color: #ffe8b4;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.explore-layer-btn {
+  pointer-events: auto;
+  padding: 3px 10px;
+  min-height: 28px;
+  background: #0d6b57;
+  border: 2px solid #4ce0c0;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.explore-layer-btn:hover,
+.explore-layer-btn:focus-visible {
+  background: #138a70;
+}
+
+.explore-quick-school {
+  border-color: #ffe45e;
+}
+
+.explore-quick-school small {
+  color: #ffe45e;
+}
+
+.explore-quick-exit {
+  border-color: #4ce0c0;
+  background: #0d3a33;
+}
+
+@media (max-width: 480px) {
+  .explore-layer-tag,
+  .explore-layer-btn {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  .explore-quick-btn {
+    font-size: 12px;
+    padding: 6px 8px;
   }
 }

@@ -252,6 +252,54 @@
       px(15, 18, [96, 30, 52], 5, 5);
     });
 
+    const bossMeadowCanvas = createOutlinedSprite(40, 40, (px) => {
+      // 稻草人大王：寬帽冠、稻草肩膀與綠色田衣。
+      px(11, 4, [255, 214, 92], 18, 4);
+      px(8, 8, [186, 128, 56], 24, 4);
+      px(13, 12, [232, 194, 112], 14, 8);
+      px(10, 18, [184, 132, 66], 20, 12);
+      px(13, 20, [255, 238, 140], 3, 3);
+      px(24, 20, [255, 238, 140], 3, 3);
+      px(3, 17, [222, 176, 84], 8, 5);
+      px(29, 17, [222, 176, 84], 8, 5);
+      px(7, 23, [146, 116, 54], 6, 4);
+      px(27, 23, [146, 116, 54], 6, 4);
+      px(12, 30, [75, 126, 58], 7, 7);
+      px(22, 30, [75, 126, 58], 7, 7);
+    });
+
+    const bossRuinsCanvas = createOutlinedSprite(40, 40, (px) => {
+      // 廟埕石獅王：石鬃、抬起的前爪與紅色廟飾。
+      px(15, 3, [255, 214, 92], 10, 4);
+      px(10, 8, [152, 152, 160], 20, 7);
+      px(6, 12, [126, 128, 142], 28, 13);
+      px(11, 17, [202, 196, 172], 7, 4);
+      px(23, 17, [202, 196, 172], 7, 4);
+      px(17, 20, [74, 48, 56], 6, 4);
+      px(10, 26, [140, 104, 72], 20, 7);
+      px(3, 19, [164, 68, 58], 8, 6);
+      px(29, 19, [164, 68, 58], 8, 6);
+      px(10, 32, [92, 90, 106], 8, 5);
+      px(22, 32, [92, 90, 106], 8, 5);
+    });
+
+    const bossTempleCanvas = createOutlinedSprite(48, 40, (px) => {
+      // 水圳巨龍：長身、角冠和水波鱗片，橫向輪廓與其他頭目區隔。
+      px(7, 8, [118, 232, 255], 8, 4);
+      px(5, 12, [54, 166, 190], 12, 8);
+      px(14, 16, [44, 133, 176], 20, 7);
+      px(30, 14, [54, 166, 190], 12, 9);
+      px(37, 10, [118, 232, 255], 8, 4);
+      px(37, 17, [255, 230, 120], 3, 3);
+      px(22, 17, [177, 248, 255], 3, 3);
+      px(29, 17, [177, 248, 255], 3, 3);
+      px(20, 23, [34, 104, 164], 6, 6);
+      px(29, 23, [34, 104, 164], 6, 6);
+      px(11, 24, [85, 217, 255], 10, 5);
+      px(4, 27, [85, 217, 255], 8, 4);
+      px(36, 25, [85, 217, 255], 8, 4);
+    });
+
     // 新版近戰 / 中程 / 遠程法師怪物精靈
     const daggerCanvas = createOutlinedSprite(18, 20, (px) => {
       px(5, 3, [82, 168, 128], 8, 6);
@@ -620,6 +668,9 @@
       runner: makeCanvasTexture(runnerCanvas),
       tank: makeCanvasTexture(tankCanvas),
       elite: makeCanvasTexture(eliteCanvas),
+      boss_meadow: makeCanvasTexture(bossMeadowCanvas),
+      boss_ruins: makeCanvasTexture(bossRuinsCanvas),
+      boss_temple: makeCanvasTexture(bossTempleCanvas),
       dagger: makeCanvasTexture(daggerCanvas),
       blade: makeCanvasTexture(bladeCanvas),
       spear: makeCanvasTexture(spearCanvas),

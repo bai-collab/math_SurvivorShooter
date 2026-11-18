@@ -41,80 +41,92 @@
       return canvas;
     }
 
-    // 第 1 關：稻香田野。田埂格線、成排稻株（第 2 幀稻穗微擺）、小水窪、田邊小花
+    // 第 1 關：稻香田野。2026-11-18 降噪：地面大部分是平順低對比的草地底色（只有極淡的低頻明暗與 Bayer 抖動），
+    // 稻株只出現在少數邊界清楚的田塊（約佔地面兩成），整張貼圖只留 1 個小水窪與少量小花。
+    // 兩幀稻浪只作用在田塊內，擺幅 1 像素。
+    const MEADOW_PLOTS = [
+      { x: 20, y: 28, w: 96, h: 64 },
+      { x: 148, y: 132, w: 88, h: 80 },
+    ];
+    const MEADOW_PUDDLE = { cx: 70, cy: 170, rx: 16, ry: 5 };
+    const MEADOW_FLOWER_COUNT = 6;
+
     function paintMeadow(put, frame) {
-      const base = rampOf([86, 122, 64]);
-      const earth = rampOf([156, 122, 76]);
-      const rice = rampOf([150, 178, 72]);
-      const water = rampOf([76, 130, 140]);
-      const CELL = 64;
+      const base = rampOf([80, 114, 62]);
+      const soil = rampOf([104, 110, 64]);
+      const earth = rampOf([150, 122, 78]);
+      const rice = rampOf([128, 156, 74]);
+      const water = rampOf([74, 124, 134]);
+      const TAU = Math.PI * 2;
+
+      const plotAt = (x, y) => MEADOW_PLOTS.find((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h);
 
       for (let y = 0; y < TILE; y++) {
         for (let x = 0; x < TILE; x++) {
           const bx = bayerAt(x, y);
-          // 低頻明暗：大塊緩變，避免高頻雜訊干擾辨識
-          const n = hash2d(Math.floor(x / 24), Math.floor(y / 24)) * 0.55
-            + (Math.sin(x * 0.045) * Math.cos(y * 0.052) * 0.5 + 0.5) * 0.45;
-          let c = base[clamp(Math.floor(1.15 + n * 1.5 + (bx - 0.5) * 0.8), 1, 3)];
-          const rx = x % CELL;
-          const ry = y % CELL;
-          if (ry < 5) {
-            c = ry === 0 ? earth[4] : ry < 4 ? earth[bx < 0.3 ? 2 : 3] : earth[1];
-          } else if (rx < 4) {
-            c = rx === 0 ? earth[4] : rx < 3 ? earth[bx < 0.3 ? 2 : 3] : earth[1];
+          // 低頻明暗：以貼圖邊長為週期，重複排列時不產生接縫；只在兩個相鄰色階之間做淡抖動
+          const n = (Math.sin((x / TILE) * TAU * 2 + 1.3) * Math.cos((y / TILE) * TAU * 2) * 0.35
+            + Math.sin((2 * x + y) / TILE * TAU + 0.4) * Math.cos((y - x) / TILE * TAU) * 0.15 + 0.5);
+          let c = base[n + (bx - 0.5) * 0.12 > 0.5 ? 3 : 2];
+          const p = plotAt(x, y);
+          if (p) {
+            const dx = Math.min(x - p.x, p.x + p.w - 1 - x);
+            const dy = Math.min(y - p.y, p.y + p.h - 1 - y);
+            const edge = Math.min(dx, dy);
+            if (edge < 3) c = edge === 0 ? earth[1] : edge === 1 ? earth[2] : soil[1];
+            else c = soil[bx > 0.92 ? 3 : 2];
           }
           put(x, y, c);
         }
       }
 
-      for (let fy = 0; fy < 4; fy++) {
-        for (let fx = 0; fx < 4; fx++) {
-          const puddle = hash2d(fx * 3 + 1, fy * 5 + 2) < 0.38;
-          for (let j = 0; j < 3; j++) {
-            if (puddle && j === 1) continue;
-            for (let i = 0; i < 6; i++) {
-              const x0 = fx * CELL + 8 + i * 9 + (j & 1) * 4;
-              const y0 = fy * CELL + 14 + j * 15;
-              const sway = frame && ((i + j + fx + fy) & 1) ? 1 : 0;
-              for (let k = 0; k < 4; k++) put(x0 + k, y0 + 4, base[0]);
-              put(x0 + 1, y0 + 3, rice[1]);
-              put(x0 + 2, y0 + 3, rice[1]);
-              for (let k = 0; k < 4; k++) put(x0 + k, y0 + 2, rice[2]);
-              for (let k = 0; k < 4; k++) put(x0 + k, y0 + 1, rice[3]);
-              put(x0 + 1 + sway, y0, rice[4]);
-              put(x0 + 2 + sway, y0, rice[4]);
-              if (hash2d(x0, y0) < 0.35) put(x0 + 2 + sway, y0 - 1, [255, 224, 110]);
-            }
-          }
-          if (puddle) {
-            const cx = fx * CELL + 32;
-            const cy = fy * CELL + 31;
-            for (let dy = -6; dy <= 6; dy++) {
-              for (let dx = -19; dx <= 19; dx++) {
-                const e = (dx / 19) * (dx / 19) + (dy / 6) * (dy / 6);
-                if (e > 1) continue;
-                put(cx + dx, cy + dy, e > 0.72 ? water[1] : ((dx + dy) & 1) && e < 0.4 ? water[3] : water[2]);
-              }
-            }
-            const s1 = frame ? 4 : 0;
-            const s2 = frame ? 3 : 0;
-            for (let k = 0; k < 5; k++) put(cx - 9 + s1 + k, cy - 2, water[4]);
-            for (let k = 0; k < 4; k++) put(cx + 2 - s2 + k, cy + 2, water[4]);
+      // 田塊內的稻株：行距 12、株距 10，每株 3 格寬，稻穗在第 2 幀向右偏 1 像素
+      for (const p of MEADOW_PLOTS) {
+        for (let ry = p.y + 8; ry + 6 < p.y + p.h - 3; ry += 12) {
+          for (let rx = p.x + 6 + (((ry - p.y) / 12) & 1) * 5; rx + 4 < p.x + p.w - 3; rx += 10) {
+            const sway = frame ? 1 : 0;
+            put(rx, ry + 4, soil[0]);
+            put(rx + 1, ry + 4, soil[0]);
+            put(rx + 2, ry + 4, soil[0]);
+            put(rx + 1, ry + 3, rice[1]);
+            put(rx, ry + 2, rice[2]);
+            put(rx + 1, ry + 2, rice[2]);
+            put(rx + 2, ry + 2, rice[2]);
+            put(rx + 1 + sway, ry + 1, rice[3]);
           }
         }
       }
 
-      // 田埂邊小花（白、粉、黃）
+      // 小水窪：整張貼圖只有一個，漣漪只移動一格
+      {
+        const { cx, cy, rx, ry } = MEADOW_PUDDLE;
+        for (let dy = -ry; dy <= ry; dy++) {
+          for (let dx = -rx; dx <= rx; dx++) {
+            const e = (dx / rx) * (dx / rx) + (dy / ry) * (dy / ry);
+            if (e > 1) continue;
+            put(cx + dx, cy + dy, e > 0.72 ? water[1] : water[2]);
+          }
+        }
+        const s = frame ? 2 : 0;
+        for (let k = 0; k < 5; k++) put(cx - 6 + s + k, cy - 1, water[3]);
+      }
+
+      // 少量小花：只長在田塊與水窪以外的空草地
       const petals = [[250, 244, 230], [244, 160, 180], [255, 214, 90]];
-      for (let k = 0; k < 34; k++) {
-        const x = Math.floor(hash2d(k, 11) * TILE);
-        const y = Math.floor(hash2d(k, 29) * 4) * CELL - 3;
+      let placed = 0;
+      for (let k = 0; k < 60 && placed < MEADOW_FLOWER_COUNT; k++) {
+        const x = Math.floor(hash2d(k, 11) * (TILE - 4));
+        const y = Math.floor(hash2d(k, 29) * (TILE - 4));
+        const m = 6;
+        if (plotAt(x - m, y - m) || plotAt(x + m, y - m) || plotAt(x - m, y + m) || plotAt(x + m, y + m)) continue;
+        if (Math.abs(x - MEADOW_PUDDLE.cx) < MEADOW_PUDDLE.rx + 8 && Math.abs(y - MEADOW_PUDDLE.cy) < MEADOW_PUDDLE.ry + 8) continue;
         const col = petals[Math.floor(hash2d(k, 47) * 3)];
         put(x, y, col);
         put(x + 1, y, col);
         put(x, y + 1, col);
         put(x + 1, y + 1, [255, 200, 60]);
         put(x, y + 2, rice[1]);
+        placed++;
       }
     }
 

@@ -517,6 +517,33 @@
     'speed-time': makeSpeedTime,
   };
 
+  // 依首答表現與距離上次作答時間選題；缺少紀錄時每個題型權重相同。
+  function pickTopic(band, stats, rng) {
+    if (!BANDS[band]) throw new Error(`未知年級段：${band}`);
+    const random = typeof rng === 'function' ? rng : Math.random;
+    const rows = stats && stats.byTopic && typeof stats.byTopic === 'object' ? stats.byTopic : stats || {};
+    const now = Date.now();
+    const weights = BANDS[band].topics.map((topic) => {
+      const row = rows[topic];
+      if (!row || typeof row !== 'object') return { topic, weight: 1 };
+      const questions = Math.max(0, Number(row.questions) || 0);
+      const firstTryCorrect = Math.max(0, Number(row.firstTryCorrect) || 0);
+      const accuracy = questions > 0 ? Math.min(1, firstTryCorrect / questions) : 0.5;
+      const lastAnsweredAt = Math.max(0, Number(row.lastAnsweredAt) || 0);
+      const ageDays = lastAnsweredAt > 0 ? Math.max(0, (now - lastAnsweredAt) / 86400000) : 0;
+      const accuracyWeight = 1 + (1 - accuracy) * 2;
+      const recencyWeight = 1 + Math.min(1.5, ageDays / 30);
+      return { topic, weight: accuracyWeight * recencyWeight };
+    });
+    const total = weights.reduce((sum, item) => sum + item.weight, 0);
+    let point = Math.min(0.999999999, Math.max(0, random())) * total;
+    for (const item of weights) {
+      point -= item.weight;
+      if (point < 0) return item.topic;
+    }
+    return weights[weights.length - 1].topic;
+  }
+
   function makeQuestion(band, rng, topic) {
     if (!BANDS[band]) throw new Error(`未知年級段：${band}`);
     const random = typeof rng === 'function' ? rng : Math.random;
@@ -598,6 +625,7 @@
     TOPIC_LABELS,
     TOPICS_BY_BAND: BANDS,
     createRng,
+    pickTopic,
     makeQuestion,
     generateQuestion: makeQuestion,
     makeHarvestRule,

@@ -4,24 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>像素槍戰倖存者 | Pixel Gun Survivors</title>
-  <link rel="stylesheet" href="style.css?v=20261118b" />
+  <link rel="stylesheet" href="style.css?v=20261118c" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%BE%3C/text%3E%3C/svg%3E" />
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js" defer></script>
-  <script src="src/pixel-art.js?v=20261118b" defer></script>
-  <script src="src/stage-art.js?v=20261118b" defer></script>
-  <script src="src/audio.js?v=20261118b" defer></script>
-  <script src="src/gamepad.js?v=20261118b" defer></script>
-  <script src="src/runes.js?v=20261118b" defer></script>
-  <script src="src/gear.js?v=20261118b" defer></script>
-  <script src="src/math-quest.js?v=20261118b" defer></script>
-  <script src="src/weapons.js?v=20261118b" defer></script>
-  <script src="src/renderer.js?v=20261118b" defer></script>
-  <script src="src/game.js?v=20261118b" defer></script>
-  <script src="src/beishewei-map-data.js?v=20261118b" defer></script>
-  <script src="src/explore-quest.js?v=20261118b" defer></script>
-  <script src="src/explore.js?v=20261118b" defer></script>
-  <script src="src/ui.js?v=20261118b" defer></script>
-  <script src="src/main.js?v=20261118b" defer></script>
+  <script src="src/pixel-art.js?v=20261118c" defer></script>
+  <script src="src/stage-art.js?v=20261118c" defer></script>
+  <script src="src/audio.js?v=20261118c" defer></script>
+  <script src="src/gamepad.js?v=20261118c" defer></script>
+  <script src="src/runes.js?v=20261118c" defer></script>
+  <script src="src/gear.js?v=20261118c" defer></script>
+  <script src="src/math-quest.js?v=20261118c" defer></script>
+  <script src="src/weapons.js?v=20261118c" defer></script>
+  <script src="src/renderer.js?v=20261118c" defer></script>
+  <script src="src/game.js?v=20261118c" defer></script>
+  <script src="src/beishewei-map-data.js?v=20261118c" defer></script>
+  <script src="src/explore-quest.js?v=20261118c" defer></script>
+  <script src="src/explore.js?v=20261118c" defer></script>
+  <script src="src/ui.js?v=20261118c" defer></script>
+  <script src="src/main.js?v=20261118c" defer></script>
 </head>
 <body>
   <div id="game-container"></div>
@@ -51,6 +51,11 @@
           <button id="pause-btn" class="mute-btn" type="button">暫停</button>
         </div>
       </div>
+      <div id="math-combo-hud" class="math-combo-hud hidden" aria-live="polite">🔥 連擊 <span id="math-combo-count">0</span><span id="math-combo-bonus">｜本局加成 +0%</span></div>
+      <div id="boss-hud" class="boss-hud hidden" aria-live="polite">
+        <div class="boss-hud-heading"><strong id="boss-name"></strong><span id="boss-shield-status"></span></div>
+        <div class="boss-hp-wrap"><div id="boss-hp-fill"></div></div>
+      </div>
       <div id="math-buff-hud" class="math-buff-hud hidden" aria-live="polite">⚡ 加速中 <span id="math-buff-time">0</span> 秒</div>
     </div>
 
@@ -63,9 +68,12 @@
   </div>
 
   <div id="math-quiz-banner" class="math-quiz-banner hidden" aria-live="polite">
-    <div class="math-banner-heading"><span>算式閘門</span><span id="math-quiz-time"></span></div>
+    <div class="math-banner-heading"><span id="math-quiz-heading">算式閘門</span><span id="math-quiz-time"></span></div>
     <div id="math-quiz-prompt" class="math-banner-prompt"></div>
     <div id="math-quiz-feedback" class="math-banner-feedback"></div>
+  </div>
+  <div id="boss-warning-banner" class="boss-warning-banner hidden" aria-live="assertive">
+    <strong>頭目來襲</strong><span id="boss-warning-name"></span><span id="boss-warning-time">3</span>
   </div>
   <div id="math-harvest-hud" class="math-harvest-hud hidden" aria-live="polite">
     <strong>🌾 稻穀豐收</strong>
@@ -212,6 +220,15 @@
     </div>
   </div>
 
+  <div id="stage-clear-overlay" class="overlay hidden">
+    <div class="panel narrow">
+      <h2>關卡通關！</h2>
+      <div id="stage-clear-stats" class="go-stats"></div>
+      <button id="continue-endless-btn" class="primary-btn" type="button">繼續挑戰（無盡模式）</button>
+      <button id="stage-clear-menu-btn" class="secondary-btn" type="button">回到選單</button>
+    </div>
+  </div>
+
   <!-- 嘉義市西區北社尾社區探索 -->
   <div id="explore-overlay" class="overlay hidden">
     <div class="panel explore-panel">
@@ -236,6 +253,10 @@
         <div class="explore-map-wrap">
           <div class="explore-canvas-box">
             <canvas id="explore-canvas" width="480" height="350"></canvas>
+            <div class="explore-layer-bar">
+              <span id="explore-layer-tag" class="explore-layer-tag">📍 北社尾社區地圖</span>
+              <button id="explore-layer-btn" class="explore-layer-btn hidden" type="button" title="離開校園，回到社區地圖（Esc）">← 離開校園</button>
+            </div>
             <div class="explore-zoom-bar">
               <button id="explore-zoom-in" class="explore-zoom-btn" type="button" title="放大地圖">＋</button>
               <button id="explore-zoom-out" class="explore-zoom-btn" type="button" title="縮小地圖">－</button>

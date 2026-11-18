@@ -98,11 +98,22 @@
         pauseBtn: document.getElementById('pause-btn'),
         muteBtn: document.getElementById('mute-btn'),
         mathQuizBanner: document.getElementById('math-quiz-banner'),
+        mathQuizHeading: document.getElementById('math-quiz-heading'),
         mathQuizTime: document.getElementById('math-quiz-time'),
         mathQuizPrompt: document.getElementById('math-quiz-prompt'),
         mathQuizFeedback: document.getElementById('math-quiz-feedback'),
         mathBuffHud: document.getElementById('math-buff-hud'),
         mathBuffTime: document.getElementById('math-buff-time'),
+        mathComboHud: document.getElementById('math-combo-hud'),
+        mathComboCount: document.getElementById('math-combo-count'),
+        mathComboBonus: document.getElementById('math-combo-bonus'),
+        bossHud: document.getElementById('boss-hud'),
+        bossName: document.getElementById('boss-name'),
+        bossShieldStatus: document.getElementById('boss-shield-status'),
+        bossHpFill: document.getElementById('boss-hp-fill'),
+        bossWarningBanner: document.getElementById('boss-warning-banner'),
+        bossWarningName: document.getElementById('boss-warning-name'),
+        bossWarningTime: document.getElementById('boss-warning-time'),
         mathHarvestHud: document.getElementById('math-harvest-hud'),
         mathHarvestRule: document.getElementById('math-harvest-rule'),
         mathHarvestCount: document.getElementById('math-harvest-count'),
@@ -156,6 +167,10 @@
         goExploreBtn: document.getElementById('go-explore-btn'),
         retryBtn: document.getElementById('retry-btn'),
         backMenuBtn: document.getElementById('back-menu-btn'),
+        stageClearOverlay: document.getElementById('stage-clear-overlay'),
+        stageClearStats: document.getElementById('stage-clear-stats'),
+        continueEndlessBtn: document.getElementById('continue-endless-btn'),
+        stageClearMenuBtn: document.getElementById('stage-clear-menu-btn'),
 
         pauseOverlay: document.getElementById('pause-overlay'),
         pauseStats: document.getElementById('pause-stats'),
@@ -244,6 +259,13 @@
         game.stateName = 'menu';
         this.renderMenu(game);
       });
+
+      if (this.els.continueEndlessBtn) {
+        this.els.continueEndlessBtn.addEventListener('click', () => game.continueEndless());
+      }
+      if (this.els.stageClearMenuBtn) {
+        this.els.stageClearMenuBtn.addEventListener('click', () => game.returnToMenuFromStageClear());
+      }
 
       if (PGS.CommunityExplore) {
         this.explore = new PGS.CommunityExplore(game, this);
@@ -349,6 +371,7 @@
         card.className = `starter-card${game.selectedStageId === st.id ? ' selected' : ''}`;
         card.innerHTML = `
           <div class="starter-name">${st.name}</div>
+          ${game.save.stageClears?.includes(st.id) ? '<div class="stage-clear-badge">★ 已通關</div>' : ''}
           <div class="starter-desc">${st.desc}</div>
         `;
         card.addEventListener('click', () => {
@@ -489,14 +512,14 @@
           return aRate - bRate || Number(b[1].attempts) - Number(a[1].attempts);
         });
       if (!topics.length) {
-        target.textContent = '完成戰鬥題目後，這裡會記下各題型的作答次數。';
+        target.innerHTML = '完成戰鬥題目後，這裡會記下各題型的作答次數。<p>最近可以再練習：完成戰鬥題目後顯示</p>';
         return;
       }
       const labels = topics.slice(0, 4).map(([id]) => PGS.MathQuest.TOPIC_LABELS[id] || id);
       target.innerHTML = `
         <div>累計題數：${Number(stats.questions) || 0}；第一次答對：${Number(stats.firstTryCorrect) || 0}</div>
         <ul>${topics.map(([id, row]) => `<li>${PGS.MathQuest.TOPIC_LABELS[id] || id}：作答 ${Number(row.attempts) || 0} 次</li>`).join('')}</ul>
-        <p>可以再練習：${labels.join('、')}</p>
+        <p>最近可以再練習：${labels[0]}</p>
       `;
     }
 
@@ -867,6 +890,13 @@
       this.els.killsText.textContent = `擊殺 ${game.kills}`;
       this.els.goldText.textContent = `金幣 +${game.runGold}`;
 
+      if (this.els.mathComboHud) {
+        this.els.mathComboHud.classList.toggle('hidden', game.stateName === 'menu' || game.stateName === 'gameover');
+        if (this.els.mathComboCount) this.els.mathComboCount.textContent = String(game.mathCombo || 0);
+        if (this.els.mathComboBonus) this.els.mathComboBonus.textContent = `｜本局加成 +${Math.round((game.comboDamageBonus || 0) * 100)}%`;
+      }
+      this.updateBossHud(game);
+
       // 答題獎勵「加速」：顯示剩餘秒數（沒有加速時隱藏）
       const buffSeconds = game.mathBuffTimer > 0 ? Math.ceil(game.mathBuffTimer) : 0;
       if (buffSeconds !== this._buffSeconds) {
@@ -1026,13 +1056,14 @@
       });
     }
 
-    showMathQuestion(question, paused, timeLeft) {
+    showMathQuestion(question, paused, timeLeft, kind = 'normal') {
+      if (this.els.mathQuizHeading) this.els.mathQuizHeading.textContent = kind === 'boss' ? '頭目算式閘門' : '算式閘門';
       this.els.mathQuizPrompt.textContent = question.prompt;
       this.els.mathQuizFeedback.textContent = '';
       this.els.mathQuizBanner.classList.remove('hidden');
       this.updateMathTimer(timeLeft);
       if (paused) {
-        this.els.mathActionTitle.textContent = '算式閘門：選一個答案';
+        this.els.mathActionTitle.textContent = kind === 'boss' ? '頭目算式閘門：選一個答案' : '算式閘門：選一個答案';
         this.els.mathActionPrompt.textContent = question.prompt;
         this.els.mathActionMessage.textContent = '按 1–4、手把方向鍵，或點擊選答案。';
         this.renderMathChoices(question, (index) => this.game.answerMathChoice(index));
@@ -1091,6 +1122,35 @@
       this.els.mathActionOverlay.classList.remove('hidden');
     }
 
+    showBossWarning(name, seconds) {
+      if (!this.els.bossWarningBanner) return;
+      this.els.bossWarningName.textContent = `${name} 即將出現`;
+      this.updateBossWarning(seconds);
+      this.els.bossWarningBanner.classList.remove('hidden');
+    }
+
+    updateBossWarning(seconds) {
+      if (this.els.bossWarningTime) this.els.bossWarningTime.textContent = String(Math.max(1, Math.ceil(seconds)));
+    }
+
+    hideBossWarning() {
+      this.els.bossWarningBanner?.classList.add('hidden');
+    }
+
+    updateBossHud(game) {
+      const boss = game.bossEnemy;
+      if (!this.els.bossHud) return;
+      const visible = Boolean(game.bossEncounterActive && boss && boss.hp > 0);
+      this.els.bossHud.classList.toggle('hidden', !visible);
+      if (!visible) return;
+      this.els.bossName.textContent = boss.bossName || game.boss?.name || '關卡頭目';
+      const hpPct = Math.max(0, Math.min(100, (boss.hp / Math.max(1, boss.maxHp)) * 100));
+      this.els.bossHpFill.style.width = `${hpPct}%`;
+      this.els.bossShieldStatus.textContent = boss.shielded
+        ? '算式護盾：啟動'
+        : `護盾破裂：${Math.ceil(boss.shieldTimer || 0)} 秒`;
+    }
+
     updateMathTimer(seconds) {
       this.els.mathQuizTime.textContent = `剩餘 ${Math.ceil(seconds)} 秒`;
     }
@@ -1102,6 +1162,7 @@
 
     hideMathBanner() {
       this.els.mathQuizBanner.classList.add('hidden');
+      if (this.els.mathQuizHeading) this.els.mathQuizHeading.textContent = '算式閘門';
       this.els.mathQuizFeedback.textContent = '';
       this.els.mathQuizTime.textContent = '';
     }
@@ -1137,6 +1198,7 @@
       const mistakeRows = mistakes.map((item) => `<li><strong>${item.prompt}</strong><br>正確答案：${item.answer}<br>${item.explanation}</li>`).join('');
       return `<section class="math-run-summary"><h3>本局數學紀錄</h3>
         <div>題數：${game.mathRun.questions}；第一次答對：${game.mathRun.firstTryCorrect}</div>
+        <div>最高連擊：${Number(game.mathRun.highestCombo) || 0}</div>
         ${topicRows ? `<ul>${topicRows}</ul>` : '<div>本局還沒有完成數學題目。</div>'}
         ${mistakeRows ? `<h4>可以再練習</h4><ul>${mistakeRows}</ul>` : '<div>本局沒有錯題紀錄。</div>'}
       </section>`;
@@ -1155,6 +1217,23 @@
         this.els.goExploreBtn.textContent = `前往北社尾社區探索（免費 ${game.save.freeExplores || 0} 次）`;
       }
       this.els.gameoverOverlay.classList.remove('hidden');
+    }
+
+    showStageClear(game, reward) {
+      const cardText = reward.card.kind === 'num' ? `數字牌 ${reward.card.val}` : `運算牌 ${reward.card.val}`;
+      this.els.stageClearStats.innerHTML = `
+        <div>關卡：<strong>${game.getStage().name}</strong></div>
+        <div>頭目：<strong>${game.boss?.name || '關卡頭目'}</strong></div>
+        <div>本局獲得金幣：<strong>+${game.runGold}</strong>（總計 ${game.save.gold}）</div>
+        <div>通關獎勵：金幣 +${reward.bonusGold}、${cardText}</div>
+        <div>總擊殺數：<strong>${game.kills}</strong>；到達等級：<strong>LV ${game.player.level}</strong></div>
+      `;
+      this.els.stageClearStats.innerHTML += this.renderMathRunSummary(game);
+      this.els.stageClearOverlay.classList.remove('hidden');
+    }
+
+    hideStageClear() {
+      this.els.stageClearOverlay?.classList.add('hidden');
     }
 
     showPause(game) {

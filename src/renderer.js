@@ -328,6 +328,8 @@
   const ANIM_STEP = 0.45; // 地面與環境 2 幀動畫的換幀間隔（秒）
   const DECOR_CELL = 5; // 地面裝飾的網格邊長（世界單位）
   const DECOR_CAP = 140;
+  // 地面裝飾保留機率（每格）：第 1 關稻香田野降到約 1/4，避免背景太花；其餘兩關維持原密度
+  const DECOR_KEEP = { meadow: 0.12, ruins: 0.55, temple: 0.55 };
   const DAMAGE_POOL = 36;
 
   // 各關背景色、光點（螢火蟲／餘燼／花粉）設定與是否有白鷺鷥
@@ -359,6 +361,7 @@
     kill: { fill: '#ff9a6a', font: 36, life: 0.85, w: 2.1 },
     player: { fill: '#ff5a5a', font: 30, life: 0.9, w: 1.9 },
     heal: { fill: '#7dff9a', font: 28, life: 0.8, w: 1.7 },
+    shield: { fill: '#7de9ff', font: 26, life: 0.7, w: 1.8 },
   };
 
   function createDamageSprite() {
@@ -513,6 +516,8 @@
       makeAdditive(this.eliteRingPool, 0.85);
       this.eliteHaloPool = createPool(this.scene, createSilhouetteTexture(textures.elite), 40, 2.35, 2.35, true);
       this.eliteHaloPool.material.opacity = 0.9;
+      this.bossRingPool = createTerrainPool(this.scene, st.eliteRing, 3);
+      makeAdditive(this.bossRingPool, 0.95);
 
       // 傷害數字：固定 36 個精靈，反覆使用；只在生成時重繪文字
       this.damageItems = Array.from({ length: DAMAGE_POOL }, () => {
@@ -551,6 +556,9 @@
         runner: createPool(this.scene, textures.runner, 160, 1.35, 1.5, true),
         tank: createPool(this.scene, textures.tank, 100, 1.95, 1.95, true),
         elite: createPool(this.scene, textures.elite, 40, 2.35, 2.35, true),
+        boss_meadow: createPool(this.scene, textures.boss_meadow, 1, 4.8, 4.8, true),
+        boss_ruins: createPool(this.scene, textures.boss_ruins, 1, 4.8, 4.8, true),
+        boss_temple: createPool(this.scene, textures.boss_temple, 1, 5.8, 4.8, true),
         dagger: createPool(this.scene, textures.dagger, 260, 1.35, 1.5, true),
         blade: createPool(this.scene, textures.blade, 180, 1.65, 1.65, true),
         spear: createPool(this.scene, textures.spear, 220, 1.5, 1.5, true),
@@ -702,8 +710,10 @@
       const style = DAMAGE_STYLES[kind] || DAMAGE_STYLES.normal;
       const item = this.damageItems[this.damageCursor];
       this.damageCursor = (this.damageCursor + 1) % this.damageItems.length;
-      const n = Math.max(0, Math.round(value));
-      let text = n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+      const n = Math.max(0, Math.round(Number(value) || 0));
+      let text = kind === 'shield'
+        ? String(value)
+        : n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
       if (kind === 'crit') text += '!';
       paintDamageSprite(item, text, style);
       item.style = style;
@@ -759,9 +769,10 @@
       const salt = this.theme === 'meadow' ? 1 : this.theme === 'ruins' ? 2 : 3;
       const counts = [0, 0, 0];
       const tex = this.stageArt.decor[this.theme];
+      const keep = DECOR_KEEP[this.theme] ?? 0.55;
       for (let gz = cz - spanZ - 2; gz <= cz + spanZ + 2; gz++) {
         for (let gx = cx - spanX; gx <= cx + spanX; gx++) {
-          if (hashUnit(gx * salt + 0.31, gz + 0.77) > 0.55) continue;
+          if (hashUnit(gx * salt + 0.31, gz + 0.77) > keep) continue;
           const kind = Math.floor(hashUnit(gx + 7.3, gz * salt + 3.1) * 3) % 3;
           if (counts[kind] >= DECOR_CAP) continue;
           const px = (gx + 0.1 + hashUnit(gx + 1.1, gz + 9.2) * 0.8) * DECOR_CELL;
@@ -1062,6 +1073,7 @@
       // 受擊閃白：顏色倍率超過 1，使貼圖亮部飽和成白色、暗部明顯提亮
       const flashColor = this._flashColor || (this._flashColor = new THREE.Color().setRGB(2.6, 2.4, 2.3));
       let eliteIdx = 0;
+      let bossIdx = 0;
       const eliteTime = this.animClock;
 
       for (let i = 0; i < enemies.length; i++) {
@@ -1100,6 +1112,16 @@
           eliteIdx++;
         }
 
+        if (e.isBoss && bossIdx < this.bossRingPool.instanceMatrix.count) {
+          const pulse = 0.5 + 0.5 * Math.sin(eliteTime * 4 + e.id);
+          dummy.position.set(e.x, 0.032, e.z);
+          dummy.rotation.set(-Math.PI / 2, 0, 0);
+          const dia = 5.8 + pulse * 0.6;
+          dummy.scale.set(dia, dia, 1);
+          dummy.updateMatrix();
+          this.bossRingPool.setMatrixAt(bossIdx++, dummy.matrix);
+        }
+
         if (shadowIdx < this.shadowPool.instanceMatrix.count) {
           dummy.position.set(e.x + 0.22, 0.02, e.z + 0.15);
           dummy.rotation.set(-Math.PI / 2, 0, 0);
@@ -1119,6 +1141,8 @@
       this.eliteHaloPool.count = eliteIdx;
       this.eliteHaloPool.instanceMatrix.needsUpdate = true;
       if (this.eliteHaloPool.instanceColor) this.eliteHaloPool.instanceColor.needsUpdate = true;
+      this.bossRingPool.count = bossIdx;
+      this.bossRingPool.instanceMatrix.needsUpdate = true;
 
       // 子彈分批寫入
       const projCounts = {
@@ -1214,7 +1238,8 @@
         const floatY = (pk.kind === 'rune' || pk.kind === 'gear' ? 0.52 : 0.42) + Math.sin(pk.bobPhase) * 0.12;
         dummy.position.set(pk.x, floatY, pk.z);
         dummy.rotation.set(TILT_X, 0, 0);
-        dummy.scale.set(1, 1, 1);
+        const pickupScale = pk.bag ? 1.5 : 1;
+        dummy.scale.set(pickupScale, pickupScale, 1);
         dummy.updateMatrix();
 
         if (pk.kind === 'gem' && gemIdx < this.gemPool.instanceMatrix.count) {

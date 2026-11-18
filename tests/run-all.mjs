@@ -7,3 +7,6 @@ import './question-quality.test.mjs';
 import './optimization-regression.test.mjs';
 import './band-curriculum.test.mjs';
 import './explore-curriculum.test.mjs';
+import './stage-art-meadow.test.mjs';
+import './explore-layers.test.mjs';
+import './gameplay-optimization.test.mjs';

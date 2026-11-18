@@ -375,6 +375,93 @@
     },
   ];
 
+  // =========================================================
+  // F9 探索地圖分區：北園國小校內的 7 個據點只在「校園層」出現。
+  // 社區層只畫一個「北園國小」入口；進入後換成程式繪製的校園地圖（同樣 480×350 座標）。
+  // loc.x / loc.y 仍是原本社區地圖的座標（舊測試與圖鑑沿用），校園層另用 loc.campus。
+  // =========================================================
+  const CAMPUS_POS = {
+    beiyuan_gate: { x: 240, y: 290 },
+    rainbow_stairs: { x: 72, y: 104 },
+    solar_roof: { x: 300, y: 92 },
+    beiyuan_slide: { x: 112, y: 198 },
+    one_mu_field: { x: 90, y: 266 },
+    rice_drying_yard: { x: 190, y: 268 },
+    school_history_wall: { x: 310, y: 260 },
+  };
+  for (const loc of LOCATIONS) {
+    if (CAMPUS_POS[loc.id]) {
+      loc.zone = 'campus';
+      loc.campus = CAMPUS_POS[loc.id];
+    }
+  }
+
+  const rectCollider = (minX, minY, maxX, maxY) => ({
+    minX, maxX, minY, maxY,
+    p: [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY], [minX, minY]],
+  });
+
+  const CAMPUS = {
+    // 校園範圍（圍牆內側）；校門在南側中央，缺口 x 222～258
+    bounds: { minX: 20, minY: 24, maxX: 460, maxY: 318 },
+    start: { x: 240, y: 308 },
+    gateGap: { minX: 222, maxX: 258 },
+    // 會擋住主角的東西：教學大樓、溜滑梯塔、稻穀埕後牆、校史牆、警衛室與圍牆
+    // 前 5 個是建築物，後面是圍牆與校門柱（繪圖時用低牆畫）
+    colliders: [
+      rectCollider(110, 42, 370, 72),
+      rectCollider(54, 148, 78, 170),
+      rectCollider(164, 240, 218, 252),
+      rectCollider(270, 232, 350, 242),
+      rectCollider(266, 292, 290, 310),
+      rectCollider(14, 18, 20, 322),
+      rectCollider(460, 18, 466, 322),
+      rectCollider(14, 18, 466, 24),
+      rectCollider(14, 316, 222, 322),
+      rectCollider(258, 316, 466, 322),
+      rectCollider(212, 306, 222, 316),
+      rectCollider(258, 306, 268, 316),
+    ],
+  };
+  // 操場跑道（橢圓）：繪圖與跑步動畫共用
+  const CAMPUS_TRACK = { cx: 385, cy: 172, rx: 70, ry: 50 };
+
+  // 兩個「入口」：社區層的北園國小校門、校園層的離開校園出口。走近後按行動鈕（或點它）就切換。
+  const PORTALS = {
+    campus: {
+      id: 'portal_campus',
+      portal: 'campus',
+      name: '北園國小入口',
+      x: 151,
+      y: 167,
+      color: '#ffe45e',
+      atlasIcon: 'school',
+      rewards: [],
+    },
+    community: {
+      id: 'portal_community',
+      portal: 'community',
+      name: '離開校園，回社區',
+      x: 240,
+      y: 330,
+      color: '#4ce0c0',
+      atlasIcon: 'exit',
+      rewards: [],
+    },
+  };
+  // 社區地圖上校園的高亮範圍（只是視覺提示，不擋路也不會自動傳送）
+  const CAMPUS_ZONE = { x: 108, y: 90, w: 78, h: 86 };
+
+  const isCampusLoc = (loc) => loc.zone === 'campus';
+  const posOf = (loc, layer) => (layer === 'campus' && loc.campus ? loc.campus : loc);
+  const markerSize = (loc) => (loc.portal ? 24 : ['beiyuan_gate', 'baoan_temple', 'zhenbei_temple'].includes(loc.id) ? 20 : 16);
+  // 據點圖示佔用的矩形（地圖座標）；繪圖與測試共用
+  const markerRect = (x, y, size, invScale) => {
+    const s = size * invScale;
+    const gap = 3 * invScale;
+    return { x: x - s / 2 - invScale, y: y - gap - s - invScale, w: s + 2 * invScale, h: s + 2 * invScale + gap };
+  };
+
   class CommunityExplore {
     constructor(game, ui) {
       this.game = game;
@@ -407,6 +494,8 @@
         atlasCloseBtn: document.getElementById('explore-atlas-close-btn'),
         atlasGrid: document.getElementById('explore-atlas-grid'),
         atlasProgress: document.getElementById('explore-atlas-progress'),
+        layerBtn: document.getElementById('explore-layer-btn'),
+        layerTag: document.getElementById('explore-layer-tag'),
       };
 
       this.ctx = this.els.canvas ? this.els.canvas.getContext('2d') : null;
@@ -426,7 +515,11 @@
       this.keys = {};
       this.nearbyLoc = null;
       this.activeMiniGameCleanup = null;
+      // F9：目前在哪一層（'community' 社區／'campus' 北園國小校園）。只存在記憶體，不寫入存檔。
+      this.layer = 'community';
+      this.communityPlayer = null;
       this.baseMapCanvas = this.buildBaseMap();
+      this.campusCanvas = this.buildCampusMap();
 
       this.bindEvents();
     }
@@ -489,15 +582,32 @@
 
         let snapped = null;
         const snapDist = 24 / Math.sqrt(this.cam.zoom);
-        for (const loc of LOCATIONS) {
-          if (Math.hypot(world.x - loc.x, world.y - loc.y) <= snapDist) {
-            snapped = { x: loc.x, y: loc.y };
+        for (const loc of this.getInteractables()) {
+          const pos = posOf(loc, this.layer);
+          if (Math.hypot(world.x - pos.x, world.y - pos.y) <= snapDist) {
+            snapped = { x: pos.x, y: pos.y };
+            if (loc.portal) snapped.portal = loc.portal;
             break;
           }
         }
+        // 社區層點到高亮的北園國小範圍，也當成點校園入口
+        if (!snapped && this.layer === 'community'
+          && world.x >= CAMPUS_ZONE.x && world.x <= CAMPUS_ZONE.x + CAMPUS_ZONE.w
+          && world.y >= CAMPUS_ZONE.y && world.y <= CAMPUS_ZONE.y + CAMPUS_ZONE.h) {
+          snapped = { x: PORTALS.campus.x, y: PORTALS.campus.y, portal: 'campus' };
+        }
+        // 校園層的目的地夾在圍牆內側（CAMPUS.bounds），社區層沿用整張地圖範圍
+        const lim = this.layer === 'campus'
+          ? CAMPUS.bounds
+          : { minX: 14, maxX: MAP_W - 14, minY: 16, maxY: MAP_H - 14 };
+        const targetX = Math.max(lim.minX, Math.min(lim.maxX, world.x));
+        // 校園層點在校門缺口的南側：放行 y，讓角色能走出缺口自動回社區；缺口以外照舊夾限
+        const throughGate = this.layer === 'campus'
+          && targetX >= CAMPUS.gateGap.minX && targetX <= CAMPUS.gateGap.maxX;
+        const maxTargetY = throughGate ? MAP_H - 14 : lim.maxY;
         this.moveTarget = snapped || {
-          x: Math.max(14, Math.min(MAP_W - 14, world.x)),
-          y: Math.max(16, Math.min(MAP_H - 14, world.y)),
+          x: targetX,
+          y: Math.max(lim.minY, Math.min(maxTargetY, world.y)),
         };
         this.cam.followPlayer = true;
       };
@@ -526,13 +636,10 @@
         });
       }
       if (this.els.zoomResetBtn) {
-        this.els.zoomResetBtn.addEventListener('click', () => {
-          this.cam.zoom = 1;
-          this.cam.x = MAP_W / 2;
-          this.cam.y = MAP_H / 2;
-          this.cam.followPlayer = true;
-          this.clampCamera();
-        });
+        this.els.zoomResetBtn.addEventListener('click', () => this.resetView());
+      }
+      if (this.els.layerBtn) {
+        this.els.layerBtn.addEventListener('click', () => this.leaveCampus());
       }
 
       window.addEventListener('keydown', (e) => {
@@ -550,6 +657,8 @@
             this.closeAtlas();
           } else if (!this.els.mgModal.classList.contains('hidden')) {
             this.closeMiniGame();
+          } else if (this.layer === 'campus') {
+            this.leaveCampus();
           } else {
             this.close();
           }
@@ -577,6 +686,7 @@
       this.els.mgModal.classList.add('hidden');
       this.closeAtlas();
       this.renderHeaderStats();
+      this.syncLayerUi();
       this.renderQuickList();
       this.updateNearbyLocation(true);
       this.lastTime = performance.now();
@@ -586,6 +696,8 @@
     close() {
       this.isOpen = false;
       this.closeMiniGame();
+      // 下次打開一律從社區地圖開始（人還在校園裡就先送回校門外）
+      if (this.layer === 'campus') this.setLayer('community');
       if (this.rafId) {
         cancelAnimationFrame(this.rafId);
         this.rafId = 0;
@@ -646,7 +758,17 @@
       const red = '#e96a57';
       if (!asCanvas) pixel(0, 0, 16, 16, '#231c3d');
 
-      if (['gate', 'library', 'market', 'temple', 'festival'].includes(kind)) {
+      if (kind === 'school') {
+        // F9：社區地圖上的「北園國小」入口圖示（紅屋頂校舍＋國旗）
+        pixel(7, 0, 1, 6, '#8a6a48'); pixel(8, 0, 5, 3, '#e8483c');
+        pixel(1, 6, 14, 2, red); pixel(2, 8, 12, 6, '#e8d8b0');
+        pixel(3, 9, 2, 2, blue); pixel(11, 9, 2, 2, blue); pixel(3, 12, 2, 2, blue); pixel(11, 12, 2, 2, blue);
+        pixel(7, 10, 2, 4, '#503d5e'); pixel(1, 14, 14, 1, '#7e5f3c');
+      } else if (kind === 'exit') {
+        // F9：校園地圖上的「離開校園」圖示（門＋往外箭頭）
+        pixel(2, 2, 7, 12, '#d8bd91'); pixel(3, 4, 5, 10, '#503d5e'); pixel(7, 8, 1, 2, '#ffe45e');
+        pixel(9, 7, 5, 2, green); pixel(12, 5, 1, 6, green); pixel(13, 6, 1, 4, green); pixel(14, 7, 1, 2, green);
+      } else if (['gate', 'library', 'market', 'temple', 'festival'].includes(kind)) {
         pixel(2, 4, 12, 2, kind === 'temple' ? '#e88b2e' : red);
         pixel(3, 6, 10, 8, '#d8bd91');
         pixel(5, 8, 2, 2, blue);
@@ -732,7 +854,9 @@
         if (!isCollected) {
           const hint = document.createElement('p');
           hint.className = 'atlas-hint';
-          hint.textContent = `提示：走到「${loc.name}」附近完成小遊戲。`;
+          hint.textContent = isCampusLoc(loc)
+            ? `提示：先走進北園國小校園，再走到「${loc.name}」附近完成小遊戲。`
+            : `提示：走到「${loc.name}」附近完成小遊戲。`;
           card.appendChild(hint);
         }
         this.els.atlasGrid.appendChild(card);
@@ -796,31 +920,109 @@
       this.els.progressBadge.textContent = `社區解鎖進度：${Math.max(0, totalUnlock)} / ${totalUnlockable}`;
     }
 
+    // ===== F9 探索地圖分區：社區層／校園層 =====
+    getVisibleLocations(layer = this.layer) {
+      return LOCATIONS.filter((loc) => (layer === 'campus') === isCampusLoc(loc));
+    }
+
+    // 目前這一層能互動的東西：據點＋一個進出入口
+    getInteractables(layer = this.layer) {
+      return this.getVisibleLocations(layer).concat([layer === 'campus' ? PORTALS.community : PORTALS.campus]);
+    }
+
+    resetView() {
+      this.cam.zoom = 1;
+      this.cam.x = MAP_W / 2;
+      this.cam.y = MAP_H / 2;
+      this.cam.followPlayer = true;
+      this.clampCamera();
+    }
+
+    syncLayerUi() {
+      const campus = this.layer === 'campus';
+      if (this.els.layerBtn) this.els.layerBtn.classList.toggle('hidden', !campus);
+      if (this.els.layerTag) this.els.layerTag.textContent = campus ? '📍 北園國小校園' : '📍 北社尾社區地圖';
+      if (this.els.overlay && this.els.overlay.dataset) this.els.overlay.dataset.layer = this.layer;
+    }
+
+    enterCampus() { this.setLayer('campus'); }
+
+    leaveCampus() { this.setLayer('community'); }
+
+    // 換層：主角放到新那層的入口附近，視野重置，清單與資訊卡跟著更新
+    setLayer(next) {
+      if (next === this.layer || (next !== 'campus' && next !== 'community')) return;
+      this.moveTarget = null;
+      this.dragState = null;
+      this.keys = {};
+      this.nearbyLoc = null;
+      if (next === 'campus') {
+        this.communityPlayer = { x: this.player.x, y: this.player.y };
+        this.layer = 'campus';
+        Object.assign(this.player, { x: CAMPUS.start.x, y: CAMPUS.start.y, vx: 0, vy: 0, dir: 'up', walkTimer: 0 });
+        this.roadLabelRects = [];
+      } else {
+        const back = this.communityPlayer || PORTALS.campus;
+        this.layer = 'community';
+        Object.assign(this.player, { x: back.x, y: back.y, vx: 0, vy: 0, dir: 'down', walkTimer: 0 });
+        this.communityPlayer = null;
+        this.roadLabelRects = this.communityRoadLabelRects || [];
+      }
+      this.resetView();
+      if (this.els.canvas && this.els.canvas.classList) this.els.canvas.classList.remove('dragging');
+      if (this.isOpen) {
+        this.syncLayerUi();
+        this.updateNearbyLocation(true);
+      }
+    }
+
+    _makeQuickBtn(label, small, active, onClick, extraClass = '') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `explore-quick-btn${extraClass ? ` ${extraClass}` : ''}${active ? ' active' : ''}`;
+      const name = document.createElement('span');
+      name.textContent = label;
+      btn.appendChild(name);
+      if (small) {
+        const note = document.createElement('small');
+        note.textContent = small;
+        btn.appendChild(note);
+      }
+      btn.addEventListener('click', onClick);
+      return btn;
+    }
+
     renderQuickList() {
       this.els.quickList.innerHTML = '';
-      for (const loc of LOCATIONS) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'explore-quick-btn' + (this.nearbyLoc?.id === loc.id ? ' active' : '');
+      const near = this.nearbyLoc;
+      if (this.layer === 'campus') {
+        this.els.quickList.appendChild(this._makeQuickBtn('← 離開校園，回社區', '', near?.portal === 'community', () => this.leaveCampus(), 'explore-quick-exit'));
+      } else {
+        // 校內 7 個據點收成一個群組：點了就進入校園，不再把它們攤在社區清單裡
+        const campusLocs = this.getVisibleLocations('campus');
+        const collected = new Set(this.getAtlasSave().collected);
+        const have = campusLocs.filter((loc) => collected.has(loc.id)).length;
+        this.els.quickList.appendChild(this._makeQuickBtn(`北園國小（${campusLocs.length}）`, `進入校園 ${have}/${campusLocs.length}`, near?.portal === 'campus', () => this.enterCampus(), 'explore-quick-school'));
+      }
+      for (const loc of this.getVisibleLocations()) {
+        let small = '補給';
         if (loc.rewards.length > 0) {
-          const doneCount = loc.rewards.filter((r) => this.isRewardUnlocked(r)).length;
-          btn.innerHTML = `<span>${loc.name}</span><small>${doneCount}/${loc.rewards.length}</small>`;
-        } else {
-          btn.innerHTML = `<span>${loc.name}</span><small>補給</small>`;
+          small = `${loc.rewards.filter((r) => this.isRewardUnlocked(r)).length}/${loc.rewards.length}`;
         }
-        btn.addEventListener('click', () => {
-          this.moveTarget = { x: loc.x, y: loc.y };
+        const pos = posOf(loc, this.layer);
+        this.els.quickList.appendChild(this._makeQuickBtn(loc.name, small, near?.id === loc.id, () => {
+          this.moveTarget = { x: pos.x, y: pos.y };
           this.cam.followPlayer = true;
-        });
-        this.els.quickList.appendChild(btn);
+        }));
       }
     }
 
     updateNearbyLocation(force = false) {
       let closest = null;
       let minDist = 30;
-      for (const loc of LOCATIONS) {
-        const d = Math.hypot(this.player.x - loc.x, this.player.y - loc.y);
+      for (const loc of this.getInteractables()) {
+        const pos = posOf(loc, this.layer);
+        const d = Math.hypot(this.player.x - pos.x, this.player.y - pos.y);
         if (d < minDist) {
           minDist = d;
           closest = loc;
@@ -832,12 +1034,28 @@
       this.renderQuickList();
 
       if (!closest) {
-        this.els.locTitle.textContent = '漫步在嘉義市西區・北社尾社區';
+        const inCampus = this.layer === 'campus';
+        this.els.locTitle.textContent = inCampus ? '走在北園國小校園裡' : '漫步在嘉義市西區・北社尾社區';
         this.els.locMeta.textContent = '使用 WASD / 方向鍵移動，或直接點擊地圖上的據點走過去';
-        this.els.locDesc.textContent = '走近北園國小、保安宮、鎮北宮、北社尾公園或老街五金行，即可觸發溫馨社區小遊戲解鎖武器與符文！';
+        this.els.locDesc.textContent = inCampus
+          ? '彩虹階梯、旋轉溜滑梯、一畝田、稻穀埕、校史牆、屋頂太陽光電和校門口都在校園裡，走近就能玩小遊戲！想回社區，走到校門外的出口，或按「離開校園」。'
+          : '走近北園國小（可進入校園）、保安宮、鎮北宮、北社尾公園或老街五金行，即可觸發溫馨社區小遊戲解鎖武器與符文！';
         this.els.locRewards.innerHTML = '';
         this.els.actionBtn.disabled = true;
-        this.els.actionBtn.textContent = '請先走到社區據點旁';
+        this.els.actionBtn.textContent = inCampus ? '請先走到校園據點旁' : '請先走到社區據點旁';
+        return;
+      }
+
+      if (closest.portal) {
+        const toCampus = closest.portal === 'campus';
+        this.els.locTitle.textContent = toCampus ? '北園國小（校園入口）' : '校門口・離開校園';
+        this.els.locMeta.textContent = toCampus ? '北社尾路 168 號 ｜ 校園裡有 7 個據點' : '走出校門，回到北社尾社區地圖';
+        this.els.locDesc.textContent = toCampus
+          ? '彩虹階梯、旋轉溜滑梯、一畝田、稻穀埕、校史牆、屋頂太陽光電和校門口都藏在北園國小裡面。走進校園再慢慢逛，地圖就不會擠成一團！'
+          : '逛完校園了嗎？按下面的按鈕，或按 Esc，就能回到社區地圖繼續探索。';
+        this.els.locRewards.innerHTML = '';
+        this.els.actionBtn.disabled = false;
+        this.els.actionBtn.textContent = toCampus ? '進入北園國小校園（7 個據點）' : '離開校園，回到社區';
         return;
       }
 
@@ -885,6 +1103,11 @@
     }
 
     tryStartMiniGame(loc) {
+      // 進出校園的入口不是小遊戲：不扣探索券也不花金幣，直接換層
+      if (loc.portal) {
+        this.setLayer(loc.portal);
+        return;
+      }
       if (!this.game.canStartExploreMiniGame()) return;
       const paidType = this.game.consumeExploreCost();
       if (!paidType) return;
@@ -1698,7 +1921,13 @@
         const ty = this.moveTarget.y - this.player.y;
         const dist = Math.hypot(tx, ty);
         if (dist <= 3) {
+          const portal = this.moveTarget.portal;
           this.moveTarget = null;
+          // 點校園入口／出口走到了就直接換層
+          if (portal) {
+            this.setLayer(portal);
+            return;
+          }
         } else {
           dx = tx / dist;
           dy = ty / dist;
@@ -1709,11 +1938,25 @@
         const speed = 105;
         const oldX = this.player.x;
         const oldY = this.player.y;
-        const nx = Math.max(14, Math.min(MAP_W - 14, oldX + dx * speed * dt));
-        const ny = Math.max(16, Math.min(MAP_H - 14, oldY + dy * speed * dt));
-
+        const campus = this.layer === 'campus';
+        // 校園層：左右北三面夾在圍牆內側；南側只有校門缺口可以跨出去（跨出就回社區）
+        const gate = CAMPUS.gateGap;
+        const maxXLimit = campus ? CAMPUS.bounds.maxX : MAP_W - 14;
+        const minXLimit = campus ? CAMPUS.bounds.minX : 14;
+        const minYLimit = campus ? CAMPUS.bounds.minY : 16;
+        const nx = Math.max(minXLimit, Math.min(maxXLimit, oldX + dx * speed * dt));
+        // 先處理 X 軸（含碰撞），再用「實際的 player.x」判斷是否在缺口內，決定 Y 的上限
         if (!this.hitsObstacle(nx, this.player.y)) this.player.x = nx;
+        const inGate = campus && this.player.x >= gate.minX && this.player.x <= gate.maxX;
+        const maxYLimit = campus && !inGate ? CAMPUS.bounds.maxY : MAP_H - 14;
+        const ny = Math.max(minYLimit, Math.min(maxYLimit, oldY + dy * speed * dt));
         if (!this.hitsObstacle(this.player.x, ny)) this.player.y = ny;
+
+        // 從校門缺口走出校園南界：自動回社區
+        if (campus && this.player.x >= gate.minX && this.player.x <= gate.maxX && this.player.y > CAMPUS.bounds.maxY) {
+          this.setLayer('community');
+          return;
+        }
 
         if (this.moveTarget && Math.abs(this.player.x - oldX) < 0.05 && Math.abs(this.player.y - oldY) < 0.05) {
           this.moveTarget = null;
@@ -1744,6 +1987,8 @@
     }
 
     hitsObstacle(x, y) {
+      // 校園層：擋路的是校舍、溜滑梯塔、校史牆與圍牆
+      if (this.layer === 'campus') return PGS.ExploreQuest.isBlocked(x, y, CAMPUS.colliders, 3);
       if (!this.buildingColliders) return false;
       if (PGS.ExploreQuest && typeof PGS.ExploreQuest.isBlocked === 'function') {
         return PGS.ExploreQuest.isBlocked(x, y, this.buildingColliders, 3);
@@ -2214,6 +2459,7 @@
         ctx.fillStyle = '#ffffff';
         ctx.fillText(lb.n, lb.x - tw / 2, lb.y + 3);
       }
+      this.communityRoadLabelRects = this.roadLabelRects;
 
       this.setupAmbient(mapData);
       return off;
@@ -2376,6 +2622,235 @@
       }
     }
 
+    // ===== F9 校園層：程式繪製的北園國小校園地圖（不用圖片檔）=====
+    _fillEllipse(ctx, cx, cy, rx, ry, color) {
+      ctx.fillStyle = color;
+      for (let dy = -ry; dy <= ry; dy++) {
+        const half = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy * dy) / (ry * ry))));
+        ctx.fillRect(cx - half, cy + dy, half * 2, 1);
+      }
+    }
+
+    // 2.5D 方塊：地面影子、正面牆（可帶窗戶）、屋頂與屋簷線；footprint 為 (x0,y0)-(x1,y1)，高度 h
+    _drawBlock(ctx, x0, y0, x1, y1, h, o) {
+      const w = x1 - x0;
+      ctx.fillStyle = 'rgba(18,14,28,0.38)';
+      ctx.fillRect(x0 + Math.round(h * 0.4), y0 + Math.round(h * 0.35), w, y1 - y0);
+      ctx.fillStyle = o.wall;
+      ctx.fillRect(x0, y1 - h, w, h);
+      if (o.windows) {
+        ctx.fillStyle = o.windowColor || '#7fb0d4';
+        for (let x = x0 + 5; x + 6 <= x1 - 3; x += 12) ctx.fillRect(x, y1 - h + 3, 6, 4);
+      }
+      ctx.fillStyle = 'rgba(40,24,20,0.28)';
+      ctx.fillRect(x0, y1 - 1, w, 1);
+      ctx.fillStyle = o.roof;
+      ctx.fillRect(x0, y0 - h, w, y1 - y0);
+      ctx.fillStyle = 'rgba(40,16,12,0.2)';
+      for (let y = y0 - h + 2; y < y1 - h; y += 3) ctx.fillRect(x0, y, w, 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(x0, y0 - h, w, 1);
+      ctx.strokeStyle = o.edge || '#3f2f2a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x0 + 0.5, y0 - h + 0.5, w - 1, y1 - y0 - 1);
+    }
+
+    buildCampusMap() {
+      const c = document.createElement('canvas');
+      c.width = MAP_W;
+      c.height = MAP_H;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+      const paved = (x0, y0, x1, y1) => {
+        rect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, '#a9997a');
+        rect(x0, y0, x1 - x0, y1 - y0, '#d8cdb0');
+        for (let y = y0; y < y1; y += 6) {
+          for (let x = x0 + ((y - y0) / 6 & 1) * 6; x < x1; x += 12) rect(x, y, 1, 1, '#c4b794');
+        }
+      };
+
+      // 1. 草地底圖＋校外馬路（南側人行道與柏油路）
+      ctx.drawImage(this._paintGrassBase(), 0, 0);
+      rect(0, 322, MAP_W, 12, '#cbc2a8');
+      rect(0, 334, MAP_W, 16, '#4a4e5a');
+      rect(0, 334, MAP_W, 1, '#262a33');
+      for (let x = 6; x < MAP_W; x += 22) rect(x, 342, 10, 1, '#f4f0dc');
+
+      // 2. 鋪面：川堂前廣場、中軸大道、往沙坑／稻穀埕／操場／校史牆的小路
+      paved(100, 72, 380, 98);
+      paved(226, 98, 254, 324);
+      paved(130, 190, 226, 204);
+      paved(150, 258, 166, 278);
+      paved(254, 166, 316, 178);
+      paved(254, 250, 330, 268);
+
+      // 3. 操場：紅色跑道＋草地＋白線
+      const T = CAMPUS_TRACK;
+      this._fillEllipse(ctx, T.cx, T.cy, T.rx, T.ry, '#b4563f');
+      this._fillEllipse(ctx, T.cx, T.cy, T.rx - 7, T.ry - 7, '#f1e8d2');
+      this._fillEllipse(ctx, T.cx, T.cy, T.rx - 8, T.ry - 8, '#b4563f');
+      this._fillEllipse(ctx, T.cx, T.cy, T.rx - 15, T.ry - 15, '#f1e8d2');
+      this._fillEllipse(ctx, T.cx, T.cy, T.rx - 16, T.ry - 16, '#63a84c');
+      rect(T.cx, T.cy - T.ry + 16, 1, (T.ry - 16) * 2, 'rgba(255,255,255,0.55)');
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText('操場', T.cx - 9, T.cy + 3);
+
+      // 4. 籃球場
+      rect(146, 112, 66, 60, '#c98a4c');
+      ctx.strokeStyle = '#f6efd8';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(150.5, 116.5, 57, 51);
+      rect(150, 141, 58, 1, '#f6efd8');
+      this._fillEllipse(ctx, 179, 142, 7, 7, '#f6efd8');
+      this._fillEllipse(ctx, 179, 142, 6, 6, '#c98a4c');
+      rect(173, 112, 12, 2, '#503d5e');
+      rect(173, 170, 12, 2, '#503d5e');
+
+      // 5. 彩虹階梯（6 階彩色梯級，兩側有扶手）
+      const rainbow = ['#ed6a5a', '#f4a942', '#f4df5e', '#73c980', '#65bce8', '#b77bdb'];
+      rect(40, 61, 66, 33, 'rgba(18,14,28,0.3)');
+      rainbow.forEach((color, i) => {
+        rect(40, 62 + i * 5, 64, 5, color);
+        rect(40, 62 + i * 5, 64, 1, 'rgba(255,255,255,0.35)');
+        rect(40, 66 + i * 5, 64, 1, 'rgba(0,0,0,0.2)');
+      });
+      rect(38, 62, 2, 30, '#8a6a48');
+      rect(104, 62, 2, 30, '#8a6a48');
+
+      // 6. 沙坑（木框＋白沙）與旋轉溜滑梯的滑道
+      rect(83, 177, 59, 41, '#8a6a48');
+      rect(85, 179, 55, 37, '#f1e2b0');
+      for (let k = 0; k < 40; k++) rect(86 + Math.floor(hash2(k, 5) * 52), 180 + Math.floor(hash2(k, 7) * 34), 1, 1, '#d8c690');
+      this._pxLine(ctx, 76, 150, 98, 158, 5, '#f28bff');
+      this._pxLine(ctx, 98, 158, 90, 168, 5, '#f28bff');
+      this._pxLine(ctx, 90, 168, 106, 180, 5, '#f28bff');
+      this._pxLine(ctx, 76, 149, 98, 157, 2, '#ffd0ff');
+      this._pxLine(ctx, 98, 157, 90, 167, 2, '#ffd0ff');
+      this._pxLine(ctx, 90, 167, 106, 179, 2, '#ffd0ff');
+
+      // 7. 一畝田（水稻田＋田埂）
+      rect(27, 237, 124, 68, '#c4a468');
+      rect(29, 239, 120, 64, '#a9c04c');
+      for (let y = 240; y < 302; y += 6) {
+        const row = ((y - 240) / 6) | 0;
+        rect(29, y, 120, 3, row & 1 ? '#98b340' : '#b6cc5a');
+        for (let x = 31 + (row & 1 ? 2 : 0); x < 148; x += 5) {
+          rect(x, y + 1, 2, 2, '#6f9a2e');
+          rect(x, y, 1, 1, '#e0ee8a');
+        }
+      }
+      rect(29, 261, 120, 10, '#d9c28a');
+      rect(29, 261, 120, 1, '#e6cf94');
+
+      // 8. 稻穀埕地面與曬穀蓆
+      rect(163, 239, 56, 50, '#a9997a');
+      rect(164, 252, 54, 36, '#e3c88a');
+      for (let y = 252; y < 288; y += 6) for (let x = 164 + ((y / 6) & 1) * 6; x < 218; x += 12) rect(x, y, 6, 6, '#d9bb78');
+      for (const mx of [170, 188, 204]) {
+        rect(mx, 274, 12, 10, '#eacb77');
+        rect(mx, 274, 12, 1, '#fff0a8');
+        for (let k = 0; k < 6; k++) rect(mx + 1 + ((k * 5) % 10), 276 + ((k * 3) % 7), 1, 1, '#c79a3a');
+      }
+
+      // 9. 2.5D 建築與牆（由後往前）：教學大樓（屋頂有光電板）、稻穀埕後牆、校史牆、溜滑梯塔、警衛室
+      this._drawBlock(ctx, 110, 42, 370, 72, 14, { wall: '#e8d8b0', roof: '#cf5f45', edge: '#3f2f2a', windows: true });
+      rect(228, 62, 24, 10, '#503d5e');
+      rect(230, 64, 20, 8, '#7fb0d4');
+      rect(239, 64, 2, 8, '#503d5e');
+      // 屋頂太陽光電板
+      rect(252, 31, 112, 25, '#5b4a40');
+      for (let y = 32; y < 55; y += 6) {
+        for (let x = 254; x < 362; x += 9) {
+          rect(x, y, 8, 5, '#2a5fa8');
+          rect(x, y, 8, 1, '#8fc4f0');
+          rect(x + 3, y, 1, 5, '#3f7fcb');
+        }
+      }
+      this._drawBlock(ctx, 164, 240, 218, 252, 10, { wall: '#d8c08a', roof: '#a8584a', edge: '#3f2f2a', windows: true, windowColor: '#503d5e' });
+      this._drawBlock(ctx, 270, 232, 350, 242, 10, { wall: '#efe2c6', roof: '#a8584a', edge: '#3f2f2a' });
+      const timeline = ['#ed6a5a', '#f4a942', '#f4df5e', '#73c980', '#65bce8', '#b77bdb', '#ffb76e'];
+      timeline.forEach((color, i) => {
+        rect(274 + i * 10, 234, 8, 6, color);
+        rect(274 + i * 10, 234, 8, 1, 'rgba(255,255,255,0.45)');
+      });
+      this._drawBlock(ctx, 54, 148, 78, 170, 22, { wall: '#f4efe0', roof: '#f28bff', edge: '#6a2f7a', windows: true });
+      this._drawBlock(ctx, 266, 292, 290, 310, 10, { wall: '#d9c8a2', roof: '#cf5f45', edge: '#3f2f2a', windows: true });
+
+      // 10. 圍牆（南側留校門缺口）、校門柱與橫樑、校名牌
+      const wall = { wall: '#c9785c', roof: '#e2a98a', edge: '#6a3f30' };
+      for (const col of CAMPUS.colliders.slice(5)) this._drawBlock(ctx, col.minX, col.minY, col.maxX, col.maxY, 4, wall);
+      this._drawBlock(ctx, 212, 306, 222, 322, 14, { wall: '#d9c8a2', roof: '#c4533a', edge: '#6a3f30' });
+      this._drawBlock(ctx, 258, 306, 268, 322, 14, { wall: '#d9c8a2', roof: '#c4533a', edge: '#6a3f30' });
+      rect(222, 304, 36, 3, '#8a6a48');
+      rect(222, 304, 36, 1, '#c4a468');
+      rect(172, 308, 2, 8, '#8a6a48');
+      rect(204, 308, 2, 8, '#8a6a48');
+      rect(168, 296, 42, 13, '#16382f');
+      rect(168, 296, 42, 1, '#e6d9a8');
+      rect(168, 308, 42, 1, '#e6d9a8');
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('北園國小', 173, 306);
+
+      // 11. 旗桿（旗面在動畫層）與行道樹（由上往下畫）
+      rect(262, 124, 2, 28, '#8a6a48');
+      rect(260, 150, 6, 3, '#6b6860');
+      const trees = [[34, 50], [60, 44], [90, 48], [400, 50], [430, 44], [448, 62], [30, 128], [32, 156], [36, 200],
+        [128, 112], [130, 150], [276, 120], [284, 150], [330, 108], [290, 210], [158, 310], [310, 304], [340, 298],
+        [380, 302], [420, 298], [452, 302], [345, 284], [400, 264], [440, 256], [452, 232]];
+      trees.sort((a, b) => a[1] - b[1]);
+      trees.forEach(([tx, ty], i) => this._drawTree(ctx, tx, ty, i * 7 + 3));
+
+      this.campusColliders = CAMPUS.colliders;
+      return c;
+    }
+
+    // 校園層的小動畫：操場跑步的同學、旗桿上飄動的旗
+    drawCampusLife(ctx) {
+      const t = this.animTime;
+      const T = CAMPUS_TRACK;
+      const shirts = ['#e05a4a', '#4a8ae0', '#e0b84a'];
+      shirts.forEach((shirt, i) => {
+        const a = t * (0.5 + i * 0.07) + i * 2.1;
+        const x = Math.round(T.cx + Math.cos(a) * (T.rx - 4 - i * 4));
+        const y = Math.round(T.cy + Math.sin(a) * (T.ry - 4 - i * 4));
+        const step = Math.floor(t * 8 + i) & 1;
+        ctx.fillStyle = 'rgba(18,14,28,0.35)';
+        ctx.fillRect(x - 3, y + 1, 7, 2);
+        ctx.fillStyle = '#2b3a58';
+        ctx.fillRect(x - 2, y - 2, 2, 3 + step);
+        ctx.fillRect(x + 1, y - 2, 2, 4 - step);
+        ctx.fillStyle = shirt;
+        ctx.fillRect(x - 2, y - 7, 5, 5);
+        ctx.fillStyle = '#ffd5a8';
+        ctx.fillRect(x - 2, y - 10, 5, 3);
+        ctx.fillStyle = '#3a2a24';
+        ctx.fillRect(x - 2, y - 11, 5, 2);
+      });
+      const wave = Math.round(Math.sin(t * 5));
+      ctx.fillStyle = '#e8483c';
+      ctx.fillRect(264, 124, 8, 5);
+      ctx.fillRect(272, 125 + wave, 3, 3);
+    }
+
+    // 社區地圖上的北園國小：高亮校園範圍（淡黃底＋流動虛線框）
+    drawCampusZone(ctx, invScale) {
+      const z = CAMPUS_ZONE;
+      const near = this.nearbyLoc?.portal === 'campus';
+      ctx.fillStyle = near ? 'rgba(255,228,94,0.26)' : 'rgba(255,228,94,0.14)';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = '#ffe45e';
+      ctx.lineWidth = 1.5 * invScale;
+      if (ctx.setLineDash) {
+        ctx.setLineDash([4 * invScale, 3 * invScale]);
+        ctx.lineDashOffset = -this.animTime * 6;
+      }
+      ctx.strokeRect(z.x, z.y, z.w, z.h);
+      if (ctx.setLineDash) ctx.setLineDash([]);
+    }
+
     // ===== 據點標記：會上下跳動的像素圖示＋名稱牌（含避讓）＋通關星星 =====
     _getMarkerIcon(loc) {
       this._markerIcons = this._markerIcons || {};
@@ -2423,18 +2898,20 @@
     drawLocationMarkers(ctx, invScale) {
       const t = this.animTime;
       const pulse = Math.sin(t * 4) * 2;
-      const landmarkIds = ['beiyuan_gate', 'baoan_temple', 'zhenbei_temple'];
+      // F9：只畫「這一層」看得到的據點，再加上進出校園的入口；位置依層取社區座標或校園座標
+      const layer = this.layer;
       const target = this.moveTarget;
-      const items = LOCATIONS.map((loc, i) => {
+      const items = this.getInteractables().map((loc, i) => {
+        const pos = posOf(loc, layer);
         const done = loc.rewards.length > 0 && loc.rewards.every((r) => this.isRewardUnlocked(r));
         const isNear = this.nearbyLoc?.id === loc.id;
-        const isTarget = !!target && target.x === loc.x && target.y === loc.y;
-        const landmark = landmarkIds.includes(loc.id);
-        const size = (landmark ? 20 : 16) * invScale;
-        const gap = 3 * invScale;
+        const isTarget = !!target && target.x === pos.x && target.y === pos.y;
+        const landmark = !!loc.portal || ['beiyuan_gate', 'baoan_temple', 'zhenbei_temple'].includes(loc.id);
+        const size = markerSize(loc) * invScale;
         return {
           loc,
           i,
+          pos,
           done,
           isNear,
           landmark,
@@ -2442,56 +2919,56 @@
           size,
           bounce: Math.abs(Math.sin(t * 3 + i * 0.9)) * 3 * invScale * (isNear ? 1.6 : 1),
           // 以不含跳動的位置計算版面，避免名稱牌跟著抖動
-          rect: { x: loc.x - size / 2 - invScale, y: loc.y - gap - size - invScale, w: size + 2 * invScale, h: size + 2 * invScale + gap },
+          rect: markerRect(pos.x, pos.y, markerSize(loc), invScale),
         };
       });
 
       // 先畫圖示（y 小的先畫，下方的壓在上方的前面）
-      for (const it of items.slice().sort((a, c) => a.loc.y - c.loc.y)) {
-        const { loc, size, bounce } = it;
+      for (const it of items.slice().sort((a, c) => a.pos.y - c.pos.y)) {
+        const { loc, size, bounce, pos } = it;
         ctx.fillStyle = 'rgba(18,14,28,0.4)';
-        ctx.fillRect(loc.x - 5 * invScale, loc.y - 1.5 * invScale, 10 * invScale, 3 * invScale);
+        ctx.fillRect(pos.x - 5 * invScale, pos.y - 1.5 * invScale, 10 * invScale, 3 * invScale);
         ctx.fillStyle = loc.color;
-        ctx.fillRect(loc.x - 4 * invScale, loc.y - 1 * invScale, 8 * invScale, 2 * invScale);
-        if (it.focus) {
-          ctx.strokeStyle = '#ffffff';
+        ctx.fillRect(pos.x - 4 * invScale, pos.y - 1 * invScale, 8 * invScale, 2 * invScale);
+        if (it.focus || loc.portal) {
+          ctx.strokeStyle = loc.portal ? loc.color : '#ffffff';
           ctx.lineWidth = 1.2 * invScale;
           ctx.beginPath();
-          ctx.ellipse(loc.x, loc.y, (9 + pulse * 0.4) * invScale, (4.5 + pulse * 0.2) * invScale, 0, 0, Math.PI * 2);
+          ctx.ellipse(pos.x, pos.y, (9 + pulse * 0.4) * invScale, (4.5 + pulse * 0.2) * invScale, 0, 0, Math.PI * 2);
           ctx.stroke();
         }
         const icon = this._getMarkerIcon(loc);
         const full = size + 2 * invScale;
-        ctx.drawImage(icon, loc.x - full / 2, loc.y - 3 * invScale - full - bounce + invScale, full, full);
+        ctx.drawImage(icon, pos.x - full / 2, pos.y - 3 * invScale - full - bounce + invScale, full, full);
         if (it.done) {
-          this._drawStar(ctx, loc.x + size / 2 + 1 * invScale, loc.y - 3 * invScale - size - bounce, 7 * invScale);
+          this._drawStar(ctx, pos.x + size / 2 + 1 * invScale, pos.y - 3 * invScale - size - bounce, 7 * invScale);
         }
       }
 
-      // 再畫名稱牌：縮小時只顯示附近／選取／地標，放大後才顯示全部；重疊就換位置或略過
+      // 再畫名稱牌：縮小時只顯示附近／選取／地標，放大後才顯示全部（校園層據點少，一律顯示）；重疊就換位置或略過
       const fontPx = Math.max(7, Math.round(9 * invScale));
       ctx.font = `bold ${fontPx}px sans-serif`;
-      const showAll = this.cam.zoom >= 1.7;
+      const showAll = this.cam.zoom >= 1.7 || layer === 'campus';
       const placed = items.map((it) => it.rect).concat(this.roadLabelRects || []);
       const overlaps = (r) => placed.some((p) => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y);
       const rank = (it) => (it.focus ? 0 : it.landmark ? 1 : 2);
       const order = items.slice().sort((a, c) => rank(a) - rank(c) || a.i - c.i);
       for (const it of order) {
         if (!(it.focus || it.landmark || showAll)) continue;
-        const { loc } = it;
+        const { loc, pos } = it;
         const label = it.done ? `★ ${loc.name}` : loc.name;
         const w = ctx.measureText(label).width + 6 * invScale;
         const h = fontPx + 4 * invScale;
         const pad = 2 * invScale;
         const r = it.rect;
         const candidates = [
-          { x: loc.x - w / 2, y: r.y - h - pad },
-          { x: loc.x - w / 2, y: loc.y + 3 * invScale },
+          { x: pos.x - w / 2, y: r.y - h - pad },
+          { x: pos.x - w / 2, y: pos.y + 3 * invScale },
           { x: r.x + r.w + pad, y: r.y + (r.h - h) / 2 },
           { x: r.x - w - pad, y: r.y + (r.h - h) / 2 },
           // 四個基本位置都被擋住時（例如旁邊有路牌），再往更上方、更下方找
-          { x: loc.x - w / 2, y: r.y - 2 * h - 2 * pad },
-          { x: loc.x - w / 2, y: loc.y + 3 * invScale + h + pad },
+          { x: pos.x - w / 2, y: r.y - 2 * h - 2 * pad },
+          { x: pos.x - w / 2, y: pos.y + 3 * invScale + h + pad },
         ].map((c) => ({ x: c.x, y: c.y, w, h }));
         let pick = candidates.find((c) => !overlaps(c));
         if (!pick) {
@@ -2559,20 +3036,36 @@
       ctx.translate(-this.cam.x, -this.cam.y);
 
       // 地面兩幀（稻浪、水流）每 0.5 秒切換，其上疊道路／建築／樹木的預繪層
-      const frame = this.groundFrames ? this.groundFrames[Math.floor(this.animTime / 0.5) & 1] : null;
-      if (frame) {
-        ctx.drawImage(frame, 0, 0);
+      const inCampus = this.layer === 'campus';
+      if (inCampus) {
+        // 校園層：整張校園地圖是程式繪製、預先畫在離屏畫布
+        if (this.campusCanvas) {
+          ctx.drawImage(this.campusCanvas, 0, 0);
+        } else {
+          ctx.fillStyle = '#5d9244';
+          ctx.fillRect(0, 0, MAP_W, MAP_H);
+        }
       } else {
-        ctx.fillStyle = '#5d9244';
-        ctx.fillRect(0, 0, MAP_W, MAP_H);
+        const frame = this.groundFrames ? this.groundFrames[Math.floor(this.animTime / 0.5) & 1] : null;
+        if (frame) {
+          ctx.drawImage(frame, 0, 0);
+        } else {
+          ctx.fillStyle = '#5d9244';
+          ctx.fillRect(0, 0, MAP_W, MAP_H);
+        }
+        if (this.baseMapCanvas) ctx.drawImage(this.baseMapCanvas, 0, 0);
       }
-      if (this.baseMapCanvas) ctx.drawImage(this.baseMapCanvas, 0, 0);
 
       const invScale = 1 / Math.sqrt(this.cam.zoom);
       const pulse = Math.sin(this.animTime * 4) * 2;
 
-      // 9. 裝飾小生物與社區據點標記
-      this.drawAmbient(ctx);
+      // 9. 裝飾小生物與據點標記（社區層：校園範圍高亮＋小生物；校園層：操場跑步的同學）
+      if (inCampus) {
+        this.drawCampusLife(ctx);
+      } else {
+        this.drawCampusZone(ctx, invScale);
+        this.drawAmbient(ctx);
+      }
       this.drawLocationMarkers(ctx, invScale);
 
       // 10. 點擊移動目標點
@@ -2616,5 +3109,14 @@
   }
 
   CommunityExplore.LOCATIONS = LOCATIONS;
+  // F9：分區顯示用的資料與小工具（測試共用）
+  CommunityExplore.CAMPUS = CAMPUS;
+  CommunityExplore.PORTALS = PORTALS;
+  CommunityExplore.CAMPUS_ZONE = CAMPUS_ZONE;
+  CommunityExplore.CAMPUS_TRACK = CAMPUS_TRACK;
+  CommunityExplore.isCampusLoc = isCampusLoc;
+  CommunityExplore.posOf = posOf;
+  CommunityExplore.markerSize = markerSize;
+  CommunityExplore.markerRect = markerRect;
   PGS.CommunityExplore = CommunityExplore;
 })(window);

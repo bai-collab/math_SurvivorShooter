@@ -24,12 +24,22 @@
     mage_fire: { hp: 190, speed: 2.3, radius: 0.72, halfH: 0.9, shadowScale: 1.15, damage: 14, atkCd: 2.0, range: 15, projSprite: 'e_fire', projSpeed: 9.0, onHitStatus: 'burn', xp: 240, goldChance: 1.0, runeChance: 0.7, gearChance: 0.75, cardChance: 1.0 },
     mage_ice: { hp: 190, speed: 2.3, radius: 0.72, halfH: 0.9, shadowScale: 1.15, damage: 12, atkCd: 2.0, range: 15, projSprite: 'e_ice', projSpeed: 9.0, onHitStatus: 'chill', xp: 240, goldChance: 1.0, runeChance: 0.7, gearChance: 0.75, cardChance: 1.0 },
     mage_thunder: { hp: 190, speed: 2.3, radius: 0.72, halfH: 0.9, shadowScale: 1.15, damage: 15, atkCd: 2.2, range: 15, projSprite: 'e_thunder', projSpeed: 10.5, onHitStatus: 'paralyze', xp: 240, goldChance: 1.0, runeChance: 0.7, gearChance: 0.75, cardChance: 1.0 },
+    boss_meadow: { hp: 1000, speed: 1.9, radius: 1.7, halfH: 2.35, shadowScale: 2.8, damage: 28, atkCd: 5.2, xp: 600, goldChance: 0, runeChance: 0, gearChance: 0, cardChance: 0 },
+    boss_ruins: { hp: 1000, speed: 2.0, radius: 1.75, halfH: 2.4, shadowScale: 2.9, damage: 32, atkCd: 5.0, xp: 750, goldChance: 0, runeChance: 0, gearChance: 0, cardChance: 0 },
+    boss_temple: { hp: 1000, speed: 2.15, radius: 1.8, halfH: 2.45, shadowScale: 3.0, damage: 36, atkCd: 4.8, xp: 900, goldChance: 0, runeChance: 0, gearChance: 0, cardChance: 0 },
+  };
+
+  const BOSS_DEFS = {
+    meadow: { name: '稻草人大王', type: 'boss_meadow', hpScale: 1 },
+    ruins: { name: '廟埕石獅王', type: 'boss_ruins', hpScale: 1.12 },
+    temple: { name: '水圳巨龍', type: 'boss_temple', hpScale: 1.25 },
   };
 
   // 怪物被擊倒時的像素碎片主色（對應各怪精靈圖的主色）
   const ENEMY_SHARD_COLORS = {
     crawler: 0x68c45c, runner: 0xd65648, tank: 0x7a74a0, elite: 0xe6b040, dagger: 0x52a880, blade: 0x9c4242,
     spear: 0x4e76c6, archer: 0x40924e, slinger: 0xba8a48, mage_fire: 0xe04e34, mage_ice: 0x4cb2eb, mage_thunder: 0x8e5ce0,
+    boss_meadow: 0xd5b85e, boss_ruins: 0xaaa7a0, boss_temple: 0x58d8e8,
   };
 
   // ── 算式閘門：依「玩家選到的錯誤選項」給專屬提示（不直接說出正解）──
@@ -276,6 +286,7 @@
       showDamageNumbers: true,
       freeExplores: 1,
       communityAtlas: { collected: [], rewardsClaimed: [], title: '' },
+      stageClears: [],
       mathSettings: { band: 'middle', frequency: 'standard', pauseOnAnswer: false, pauseTouched: false },
       mathStats: { questions: 0, firstTryCorrect: 0, byTopic: {} },
       weaponCards: {},
@@ -305,6 +316,17 @@
         };
         const savedMathStats = parsed.mathStats && typeof parsed.mathStats === 'object' ? parsed.mathStats : {};
         const savedAtlas = parsed.communityAtlas && typeof parsed.communityAtlas === 'object' ? parsed.communityAtlas : {};
+        const savedTopics = savedMathStats.byTopic && typeof savedMathStats.byTopic === 'object' ? savedMathStats.byTopic : {};
+        const byTopic = Object.fromEntries(Object.entries(savedTopics).map(([topic, row]) => {
+          const stats = row && typeof row === 'object' ? row : {};
+          return [topic, {
+            attempts: Math.max(0, Number(stats.attempts) || 0),
+            questions: Math.max(0, Number(stats.questions) || 0),
+            firstTryCorrect: Math.max(0, Number(stats.firstTryCorrect) || 0),
+            lastAnsweredAt: Math.max(0, Number(stats.lastAnsweredAt) || 0),
+          }];
+        }));
+        const validStageIds = new Set((PGS.Gear.STAGES || []).map((stage) => stage.id));
         return {
           gold: parsed.gold || 0,
           bestTime: parsed.bestTime || 0,
@@ -328,11 +350,14 @@
               : [],
             title: typeof savedAtlas.title === 'string' ? savedAtlas.title : '',
           },
+          stageClears: Array.isArray(parsed.stageClears)
+            ? [...new Set(parsed.stageClears.filter((id) => typeof id === 'string' && validStageIds.has(id)))]
+            : [],
           mathSettings,
           mathStats: {
             questions: Math.max(0, Number(savedMathStats.questions) || 0),
             firstTryCorrect: Math.max(0, Number(savedMathStats.firstTryCorrect) || 0),
-            byTopic: savedMathStats.byTopic && typeof savedMathStats.byTopic === 'object' ? savedMathStats.byTopic : {},
+            byTopic,
           },
           weaponCards: parsed.weaponCards && typeof parsed.weaponCards === 'object' ? parsed.weaponCards : {},
           runeCards: parsed.runeCards && typeof parsed.runeCards === 'object' ? parsed.runeCards : {},
@@ -356,7 +381,7 @@
       this.ui = ui;
 
       this.save = loadSave();
-      this.stateName = 'menu'; // menu | playing | levelup | gameover
+      this.stateName = 'menu'; // menu | playing | levelup | gameover | stageclear
       this.selectedStarter = 'pistol';
       this.selectedStarterRune = null;
       this.selectedStageId = PGS.Gear.STAGES[0].id;
@@ -413,6 +438,115 @@
       return range[0] + Math.random() * (range[1] - range[0]);
     }
 
+    getBossDefinition() {
+      return BOSS_DEFS[this.getStage().id] || BOSS_DEFS.meadow;
+    }
+
+    getBossMaxHp() {
+      const stageScale = this.getBossDefinition().hpScale;
+      const weaponDps = (this.weapons || []).reduce((sum, weapon) => {
+        const def = weapon.def || {};
+        const damage = Number(weapon.eff?.damage ?? def.damage) || 1;
+        const pellets = Math.max(1, Number(def.pellets) || 1);
+        const cooldown = Math.max(0.12, Number(def.cooldown || def.chargeInterval) || 0.6);
+        return sum + damage * pellets * (Number(weapon.damageMult) || 1) * (Number(weapon.rateMult) || 1) / cooldown;
+      }, 0);
+      const playerScale = (Number(this.player?.globalDamageMult) || 1) * (Number(this.player?.globalRateMult) || 1);
+      // 以目前武器約 1.8 個 12 秒破盾窗口的「理論」輸出作為血量基準，並保留最低挑戰值。
+      // 實機子彈常被小怪擋掉（實測只打到理論值三到五成），原本 2.5 個窗口、最低 1800 會拖到 5 次以上破盾；
+      // 調整後實際約 3 次破盾可擊倒。
+      return Math.max(1200, Math.round(weaponDps * playerScale * 12 * 1.8 * stageScale));
+    }
+
+    getComboBonusForStreak(streak) {
+      if (streak < 3) return 0;
+      if (streak < 5) return 0.1;
+      if (streak < 10) return 0.2;
+      return 0.3;
+    }
+
+    registerMathCombo() {
+      this.mathCombo = (this.mathCombo || 0) + 1;
+      this.mathRun.highestCombo = Math.max(Number(this.mathRun.highestCombo) || 0, this.mathCombo);
+      const nextBonus = this.getComboBonusForStreak(this.mathCombo);
+      const currentBonus = Number(this.comboDamageBonus) || 0;
+      // 升階與金幣袋可能同一題發生（連擊 5、10）：合併成一則提示，避免後一則立刻蓋掉前一則
+      const toastParts = [];
+      if (nextBonus > currentBonus) {
+        this.player.globalDamageMult *= (1 + nextBonus) / (1 + currentBonus);
+        this.comboDamageBonus = nextBonus;
+        toastParts.push(`本局攻擊加成 +${Math.round(nextBonus * 100)}%`);
+      }
+      if (this.mathCombo >= 5 && this.mathCombo % 5 === 0) {
+        this.pickups.push({
+          kind: 'coin', bag: true, value: 10,
+          x: this.player.x + (this.player.facing || 1) * 2.2,
+          z: this.player.z + 0.8,
+          bobPhase: 0,
+        });
+        toastParts.push('金幣袋 +10 已掉落');
+      }
+      if (toastParts.length) this.ui.showMathToast(`連擊 ${this.mathCombo}！${toastParts.join('，')}。`);
+      this.ui.updateHud(this);
+    }
+
+    resetMathCombo() {
+      if (!this.mathCombo) return;
+      this.mathCombo = 0;
+      this.ui.updateHud(this);
+    }
+
+    updateBossSchedule(dt) {
+      if (!this.bossSpawned && !this.bossDefeated) {
+        if (this.elapsed < 297 || this.mathMode !== 'none' || this.mathHarvest?.active) return;
+        if (!this.bossWarningActive) {
+          this.bossWarningActive = true;
+          this.bossWarningTimer = 3;
+          this.ui.showBossWarning(this.getBossDefinition().name, this.bossWarningTimer);
+          return;
+        }
+        this.bossWarningTimer = Math.max(0, this.bossWarningTimer - dt);
+        this.ui.updateBossWarning(this.bossWarningTimer);
+        if (this.bossWarningTimer <= 0) {
+          this.bossWarningActive = false;
+          this.bossSpawned = true;
+          this.ui.hideBossWarning();
+          this.spawnBoss();
+        }
+        return;
+      }
+
+      const boss = this.bossEnemy;
+      if (!this.bossEncounterActive || !boss || boss.hp <= 0 || boss.shielded) return;
+      boss.shieldTimer = Math.max(0, boss.shieldTimer - dt);
+      if (this.boss) this.boss.shieldTimer = boss.shieldTimer;
+      if (boss.shieldTimer <= 0) {
+        boss.shielded = true;
+        if (this.boss) this.boss.shielded = true;
+        this.ui.showMathToast('頭目的算式護盾恢復了，請完成新題目。');
+        this.startMathQuiz('boss');
+      }
+    }
+
+    spawnBoss() {
+      const def = this.getBossDefinition();
+      const hp = this.getBossMaxHp();
+      const enemy = this.spawnEnemy(def.type, { hp, isBoss: true });
+      this.bossSpawned = true;
+      this.bossWarningActive = false;
+      enemy.bossName = def.name;
+      enemy.shielded = true;
+      enemy.shieldTimer = 0;
+      enemy.attackCount = 0;
+      this.bossEnemy = enemy;
+      this.boss = { name: def.name, enemy, shielded: true, shieldTimer: 0 };
+      this.bossEncounterActive = true;
+      this.ui.updateBossHud(this);
+      this.ui.showMathToast(`${def.name} 出現了！先答對算式，才能打破護盾。`);
+      this.startMathQuiz('boss');
+      return enemy;
+    }
+
     getMathInputState() {
       if (this.mathMode === 'paused-question') return 'math-question';
       if (this.mathMode === 'reward') return 'math-reward';
@@ -422,12 +556,14 @@
 
     updateMathEvents(dt) {
       if (!PGS.MathQuest || this.stateName !== 'playing') return;
+      if (this.bossWarningActive) return;
       if (this.mathMode === 'world-question') {
         this.mathCurrent.timeLeft = Math.max(0, this.mathCurrent.timeLeft - dt);
         this.ui.updateMathTimer(this.mathCurrent.timeLeft);
         if (this.mathCurrent.timeLeft <= 0) this.failMathQuestion('time');
         return;
       }
+      if (this.bossEncounterActive) return;
       if (this.mathMode !== 'none') return;
 
       if (this.mathHarvest.active) {
@@ -452,10 +588,12 @@
       }
     }
 
-    startMathQuiz() {
+    startMathQuiz(kind = 'normal') {
       if (this.stateName !== 'playing' || this.mathMode === 'reward') return null;
+      if (this.bossWarningActive || (this.bossEncounterActive && kind !== 'boss')) return null;
       const band = this.save.mathSettings?.band || 'middle';
-      const question = PGS.MathQuest.makeQuestion(band, Math.random);
+      const selectedTopic = PGS.MathQuest.pickTopic(band, this.save.mathStats, Math.random);
+      const question = PGS.MathQuest.makeQuestion(band, Math.random, selectedTopic);
       const halfViewWidth = this.renderer?.camera?.right || 20;
       const atTightCorner = halfViewWidth < 8 && Math.abs(this.player.x) > 96 && Math.abs(this.player.z) > 96;
       const tooNarrowForPads = halfViewWidth < 3.1;
@@ -468,16 +606,16 @@
         paused = true;
         pads = [];
       }
-      this.mathCurrent = { question, attempts: 0, timeLeft: band === 'low' ? 20 : 15, paused, completed: false, wrongChoices: [] };
+      this.mathCurrent = { question, kind, attempts: 0, timeLeft: band === 'low' ? 20 : 15, paused, completed: false, wrongChoices: [] };
       this.mathMode = paused ? 'paused-question' : 'world-question';
       this.answerPads = pads;
-      const topic = this.mathRun.topics[question.topic] || (this.mathRun.topics[question.topic] = {
+      const runTopic = this.mathRun.topics[question.topic] || (this.mathRun.topics[question.topic] = {
         label: question.topicLabel, questions: 0, attempts: 0, firstTryCorrect: 0,
       });
-      topic.questions++;
+      runTopic.questions++;
       this.mathRun.questions++;
       this.pushEnemiesAwayFromPads();
-      this.ui.showMathQuestion(question, paused, this.mathCurrent.timeLeft);
+      this.ui.showMathQuestion(question, paused, this.mathCurrent.timeLeft, kind);
       return question;
     }
 
@@ -673,7 +811,7 @@
       const runTopic = this.mathRun.topics[question.topic];
       runTopic.attempts++;
       const savedTopic = this.save.mathStats.byTopic[question.topic] || (this.save.mathStats.byTopic[question.topic] = {
-        attempts: 0, questions: 0, firstTryCorrect: 0,
+        attempts: 0, questions: 0, firstTryCorrect: 0, lastAnsweredAt: 0,
       });
       savedTopic.attempts++;
       writeSave(this.save);
@@ -681,6 +819,26 @@
       if (index === question.answerIndex) {
         this.mathCurrent.firstTryCorrect = this.mathCurrent.attempts === 1;
         this.completeMathQuestion(true);
+        if (this.mathCurrent.kind === 'boss') {
+          const boss = this.bossEnemy;
+          if (boss && boss.hp > 0) {
+            boss.shielded = false;
+            boss.shieldTimer = 12;
+            if (this.boss) {
+              this.boss.shielded = false;
+              this.boss.shieldTimer = 12;
+            }
+          }
+          this.mathMode = 'none';
+          this.mathCurrent = null;
+          this.answerPads = [];
+          this.ui.hideMathAction();
+          this.ui.hideMathBanner();
+          this.ui.updateBossHud(this);
+          this.ui.showMathToast('答對了！頭目護盾破裂 12 秒，快把握攻擊時間。');
+          this.audio.playLevelUp();
+          return;
+        }
         this.mathMode = 'reward';
         this.answerPads = [];
         this.ui.showMathReward(question);
@@ -689,6 +847,7 @@
       }
 
       this.mathCurrent.wrongChoices.push(index);
+      this.resetMathCombo();
       if (this.mathMode === 'world-question' && this.answerPads[index]) this.answerPads[index].broken = true;
       if (this.mathCurrent.attempts < 2) {
         this.ui.showMathHint(getMisconceptionHint(question, index) || this.getMathHint(question.topic), this.mathMode === 'paused-question', index);
@@ -735,12 +894,14 @@
       const current = this.mathCurrent;
       if (!current || current.recorded) return;
       current.recorded = true;
+      const answeredAt = Date.now();
       const stats = this.save.mathStats;
       const savedTopic = stats.byTopic[current.question.topic] || (stats.byTopic[current.question.topic] = {
-        attempts: 0, questions: 0, firstTryCorrect: 0,
+        attempts: 0, questions: 0, firstTryCorrect: 0, lastAnsweredAt: 0,
       });
       stats.questions++;
       savedTopic.questions++;
+      savedTopic.lastAnsweredAt = answeredAt;
       if (correct && current.firstTryCorrect) {
         stats.firstTryCorrect++;
         savedTopic.firstTryCorrect++;
@@ -756,6 +917,8 @@
           reason: correct ? 'recovered' : reason || 'wrong',
         });
       }
+      if (correct && current.firstTryCorrect) this.registerMathCombo();
+      else this.resetMathCombo();
       writeSave(this.save);
       this.ui.updateMathGrowth(this);
     }
@@ -768,11 +931,13 @@
       } else if (this.mathMode === 'feedback') {
         this.mathFeedbackTimer = Math.max(0, this.mathFeedbackTimer - dt);
         if (this.mathFeedbackTimer <= 0) {
+          const retryBossGate = this.mathCurrent?.kind === 'boss' && this.bossEncounterActive && this.bossEnemy?.hp > 0;
           this.ui.hideMathAction();
           this.ui.hideMathBanner();
           this.mathMode = 'none';
           this.mathCurrent = null;
-          this.nextQuizAt = this.elapsed + this.getQuizInterval();
+          if (retryBossGate) this.startMathQuiz('boss');
+          else if (!this.bossEncounterActive) this.nextQuizAt = this.elapsed + this.getQuizInterval();
         }
       }
     }
@@ -951,7 +1116,16 @@
       this.mathHarvest = { active: false, rule: null, timer: 0, collected: 0 };
       this.mathBuffTimer = 0;
       this.mathHarvestWave = { x: 0, z: 0, timer: 0, duration: 0.8, radius: 22 };
-      this.mathRun = { questions: 0, firstTryCorrect: 0, topics: {}, mistakes: [] };
+      this.mathCombo = 0;
+      this.comboDamageBonus = 0;
+      this.bossSpawned = false;
+      this.bossDefeated = false;
+      this.bossWarningActive = false;
+      this.bossWarningTimer = 0;
+      this.bossEncounterActive = false;
+      this.boss = null;
+      this.bossEnemy = null;
+      this.mathRun = { questions: 0, firstTryCorrect: 0, highestCombo: 0, topics: {}, mistakes: [] };
     }
 
     startRun(starterId) {
@@ -959,6 +1133,8 @@
       this.audio.unlock();
       this.resetRunState();
       this.stateName = 'playing';
+      this.ui.hideBossWarning?.();
+      this.ui.updateBossHud?.(this);
       this.ui.syncAll(this);
     }
 
@@ -1224,14 +1400,15 @@
       e.dmgCrit = false;
     }
 
-    spawnEnemy(type) {
+    spawnEnemy(type, options = {}) {
       const arch = ENEMY_ARCHETYPES[type];
       const angle = Math.random() * Math.PI * 2;
       const dist = 16 + Math.random() * 6;
       const stage = this.getStage();
-      const waveScale = (1 + Math.floor(this.elapsed / 35) * 0.22) * stage.hpMult;
+      const waveScale = type.startsWith('boss_') ? 1 : (1 + Math.floor(this.elapsed / 35) * 0.22) * stage.hpMult;
+      const hp = Math.max(1, Math.round(Number(options.hp) || arch.hp * waveScale));
 
-      this.enemies.push({
+      const enemy = {
         id: this.nextEnemyId++,
         type,
         x: Math.max(-ARENA_LIMIT, Math.min(ARENA_LIMIT, this.player.x + Math.cos(angle) * dist)),
@@ -1240,8 +1417,8 @@
         vz: 0,
         kx: 0,
         kz: 0,
-        hp: Math.round(arch.hp * waveScale),
-        maxHp: Math.round(arch.hp * waveScale),
+        hp,
+        maxHp: hp,
         speed: arch.speed * stage.speedMult,
         radius: arch.radius,
         halfH: arch.halfH,
@@ -1270,7 +1447,10 @@
         burnDps: 0,
         blindTimer: 0,
         blindAngle: 0,
-      });
+        isBoss: options.isBoss === true,
+      };
+      this.enemies.push(enemy);
+      return enemy;
     }
 
     update(dt) {
@@ -1291,6 +1471,7 @@
 
       const worldDt = this.mathMode === 'reward' ? clampedDt * 0.28 : clampedDt;
       this.elapsed += worldDt;
+      this.updateBossSchedule(worldDt);
       this.updateMathEvents(worldDt);
       if (this.mathMode === 'paused-question' || this.mathMode === 'feedback') {
         this.renderer.renderFrame(this.getRenderState(), 0);
@@ -1378,6 +1559,7 @@
     }
 
     updateSpawner(dt) {
+      if (this.bossWarningActive || this.bossEncounterActive) return;
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0 && this.enemies.length < 320) {
         const mins = this.elapsed / 60;
@@ -2438,6 +2620,14 @@
     }
 
     damageEnemy(e, dmg, kx, kz, source = null) {
+      if (e.isBoss && e.shielded) {
+        if (this.elapsed >= (e.shieldTextAt || 0)) {
+          this.renderer?.spawnDamageNumber?.(e.x, e.z, '護盾', 'shield');
+          e.shieldTextAt = this.elapsed + 0.65;
+        }
+        e.hitFlash = 0.04;
+        return;
+      }
       e.hp -= dmg;
       e.hitFlash = 0.06;
       e.kx += kx;
@@ -2448,6 +2638,17 @@
         if (idx !== -1) {
           this.enemies.splice(idx, 1);
           this.kills++;
+          if (e.isBoss) {
+            this.spawnFx(e.x, e.z, 0xffd058, 4.2, 0.34, 0.18, true);
+            const shardColor = ENEMY_SHARD_COLORS[e.type] || 0xffd058;
+            for (let i = 0; i < 16; i++) {
+              const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.3;
+              const speed = 3 + Math.random() * 2.5;
+              this.spawnShard(e.x, e.z, i % 3 === 0 ? 0xfff0c8 : shardColor, 0.24, 0.8, Math.cos(angle) * speed, Math.sin(angle) * speed, 5, 0.6);
+            }
+            this.finishStageClear();
+            return;
+          }
           this.spawnFx(e.x, e.z, 0xff6e6e, 0.85, 0.16);
           // 擊倒像素碎片：沿各方向彈出、受重力落下
           const shardColor = ENEMY_SHARD_COLORS[e.type] || 0xff6e6e;
@@ -2542,7 +2743,7 @@
           e.burnTimer = Math.max(0, e.burnTimer - dt);
           dotDmg += e.burnDps * dt;
         }
-        if (dotDmg > 0) {
+        if (dotDmg > 0 && !(e.isBoss && e.shielded)) {
           e.hp -= dotDmg;
           if (e.hp <= 0) {
             this.damageEnemy(e, 1, 0, 0);
@@ -2555,7 +2756,22 @@
         const dist = Math.hypot(dx, dz) || 1;
         const spd = e.freezeTimer > 0 ? 0 : e.speed * (e.slowTimer > 0 ? e.slowFactor || 0.45 : 1);
 
-        if (e.blindTimer > 0) {
+        if (e.isBoss) {
+          if (e.blindTimer > 0) {
+            e.blindTimer = Math.max(0, e.blindTimer - dt);
+            e.blindAngle += (Math.random() - 0.5) * 4 * dt;
+            e.vx = Math.cos(e.blindAngle) * spd * 0.5;
+            e.vz = Math.sin(e.blindAngle) * spd * 0.5;
+          } else {
+            e.vx = dist > 5.5 ? (dx / dist) * spd : 0;
+            e.vz = dist > 5.5 ? (dz / dist) * spd : 0;
+            if (e.atkTimer <= 0 && e.freezeTimer <= 0) {
+              const warnDur = 2.1;
+              e.atkTimer = warnDur + e.atkCd;
+              this.spawnBossAttack(e, warnDur);
+            }
+          }
+        } else if (e.blindTimer > 0) {
           e.blindTimer = Math.max(0, e.blindTimer - dt);
           e.blindAngle += (Math.random() - 0.5) * 4 * dt;
           e.vx = Math.cos(e.blindAngle) * spd * 0.75;
@@ -3050,6 +3266,19 @@
       });
     }
 
+    spawnBossAttack(e, warnDur) {
+      const angle = Math.atan2(this.player.z - e.z, this.player.x - e.x);
+      const addTelegraph = (x, z, radius, damage) => this.telegraphs.push({
+        x, z, radius, timer: warnDur, maxTimer: warnDur, damage, status: null, fxColor: 0xff384c, fromBoss: true,
+      });
+      addTelegraph(this.player.x, this.player.z, 3.2, e.damage);
+      if ((e.attackCount || 0) % 2 === 1) {
+        const side = angle + Math.PI / 2;
+        addTelegraph(this.player.x + Math.cos(side) * 4.4, this.player.z + Math.sin(side) * 4.4, 2.5, Math.round(e.damage * 0.75));
+      }
+      e.attackCount = (e.attackCount || 0) + 1;
+    }
+
     updateTelegraphs(dt) {
       for (let i = this.telegraphs.length - 1; i >= 0; i--) {
         const tg = this.telegraphs[i];
@@ -3088,18 +3317,86 @@
 
     finishRun() {
       this.stateName = 'gameover';
+      this.bossEncounterActive = false;
       this.mathMode = 'none';
       this.mathCurrent = null;
       this.answerPads = [];
       this.ui.hideMathAction();
       this.ui.hideMathBanner();
       this.ui.hideHarvestTask();
+      this.ui.hideBossWarning();
+      this.ui.updateBossHud(this);
       this.save.gold += this.runGold;
       this.save.freeExplores = (this.save.freeExplores || 0) + 1;
       this.save.bestTime = Math.max(this.save.bestTime, Math.floor(this.elapsed));
       this.save.bestKills = Math.max(this.save.bestKills, this.kills);
       writeSave(this.save);
       this.ui.showGameOver(this);
+    }
+
+    finishStageClear() {
+      if (this.stateName !== 'playing' || this.bossDefeated) return false;
+      this.stateName = 'stageclear';
+      this.bossDefeated = true;
+      this.bossEncounterActive = false;
+      this.bossWarningActive = false;
+      this.mathMode = 'none';
+      this.mathCurrent = null;
+      this.answerPads = [];
+      this.mathHarvest.active = false;
+      // 頭目已倒：清掉它尚未引爆的預警紅圈，避免選「繼續挑戰」後殘留紅圈仍然傷人（一般怪的預警保留）
+      this.telegraphs = this.telegraphs.filter((tg) => !tg.fromBoss);
+      this.ui.hideMathAction();
+      this.ui.hideMathBanner();
+      this.ui.hideHarvestTask();
+      this.ui.hideBossWarning();
+      this.ui.updateBossHud(this);
+
+      const stageId = this.getStage().id;
+      this.save.stageClears = Array.isArray(this.save.stageClears) ? this.save.stageClears : [];
+      if (!this.save.stageClears.includes(stageId)) this.save.stageClears.push(stageId);
+      const bonusGold = 50;
+      this.runGold += bonusGold;
+      const stage = this.getStage();
+      const uid = this.save.nextUid++;
+      const isNumber = Math.random() < 0.65;
+      const card = isNumber
+        ? { uid, kind: 'num', val: stage.numbers[Math.floor(Math.random() * stage.numbers.length)] }
+        : { uid, kind: 'op', val: stage.ops[Math.floor(Math.random() * stage.ops.length)] };
+      this.save.cards.push(card);
+      this.save.gold += this.runGold;
+      this.save.bestTime = Math.max(this.save.bestTime, Math.floor(this.elapsed));
+      this.save.bestKills = Math.max(this.save.bestKills, this.kills);
+      this.stageClearReward = { bonusGold, card };
+      this.nextQuizAt = this.elapsed + this.getQuizInterval();
+      this.nextHarvestAt = this.elapsed + 90;
+      writeSave(this.save);
+      this.ui.showStageClear(this, this.stageClearReward);
+      return true;
+    }
+
+    continueEndless() {
+      if (this.stateName !== 'stageclear') return false;
+      this.runGold = 0;
+      this.bossEnemy = null;
+      this.boss = null;
+      this.stateName = 'playing';
+      this.ui.hideStageClear();
+      this.ui.updateHud(this);
+      return true;
+    }
+
+    returnToMenuFromStageClear() {
+      if (this.stateName !== 'stageclear') return false;
+      this.runGold = 0;
+      this.stateName = 'menu';
+      this.keys = {};
+      this.joyVec = { x: 0, z: 0 };
+      this.ui.hideStageClear();
+      this.ui.els.hud.classList.add('hidden');
+      this.ui.els.menuOverlay.classList.remove('hidden');
+      this.ui.renderMenu(this);
+      return true;
     }
 
     togglePause() {

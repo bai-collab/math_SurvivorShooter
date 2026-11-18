@@ -653,6 +653,14 @@
     if (!enemies.length) return null;
     const r2 = maxRange * maxRange;
 
+    // 頭目破盾時讓自動射擊鎖定頭目，避免被場上大量小怪分走火力。
+    const exposedBoss = enemies.find((enemy) => enemy.isBoss && !enemy.shielded && enemy.id !== excludeId && enemy.hp > 0);
+    if (exposedBoss) {
+      const dx = exposedBoss.x - player.x;
+      const dz = exposedBoss.z - player.z;
+      if (dx * dx + dz * dz <= r2) return exposedBoss;
+    }
+
     if (mode === 'highestHp') {
       let best = null;
       let bestHp = -1;
