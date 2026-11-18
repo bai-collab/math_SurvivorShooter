@@ -58,6 +58,7 @@
       if (stateName === 'levelup') return 'levelup-overlay';
       if (stateName === 'rune_pick') return 'rune-overlay';
       if (stateName === 'gameover') return 'gameover-overlay';
+      if (stateName === 'math-question' || stateName === 'math-reward') return 'math-action-overlay';
       return null;
     }
 

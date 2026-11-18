@@ -530,7 +530,87 @@
         px(7, 3, [214, 86, 72], 9, 6);
         px(16, 4, [255, 214, 92], 4, 4);
       }),
+      fraction_splitter: createOutlinedSprite(24, 16, (px) => {
+        px(3, 5, steel[3], 14, 4);
+        px(6, 9, wood[2], 5, 5);
+        px(16, 4, [126, 245, 210], 5, 6);
+        px(18, 6, [236, 255, 250], 2, 2);
+      }),
+      prime_rifle: createOutlinedSprite(26, 16, (px) => {
+        px(3, 7, steel[3], 17, 4);
+        px(7, 10, wood[2], 5, 4);
+        px(12, 4, [117, 237, 255], 7, 2);
+        px(20, 5, [255, 240, 120], 2, 2);
+      }),
+      canal_water_cannon: createOutlinedSprite(24, 16, (px) => {
+        px(3, 6, [70, 126, 164], 13, 5);
+        px(7, 10, wood[2], 4, 4);
+        px(16, 5, [85, 217, 255], 6, 3);
+        px(19, 9, [178, 248, 255], 4, 2);
+      }),
+      solar_laser: createOutlinedSprite(26, 16, (px) => {
+        px(3, 7, steel[3], 12, 4);
+        px(6, 11, wood[2], 4, 4);
+        px(15, 4, [255, 226, 120], 7, 8);
+        px(17, 6, [255, 246, 184], 3, 4);
+      }),
+      egret_homing_bow: createOutlinedSprite(26, 16, (px) => {
+        px(3, 7, wood[3], 17, 2);
+        px(4, 3, [244, 255, 240], 3, 6);
+        px(8, 5, [244, 255, 240], 5, 3);
+        px(13, 4, [244, 255, 240], 4, 2);
+        px(17, 6, [255, 246, 184], 3, 3);
+      }),
+      firecracker_launcher: createOutlinedSprite(24, 16, (px) => {
+        px(3, 6, steel[3], 10, 5);
+        px(6, 10, wood[2], 4, 4);
+        px(14, 4, [214, 55, 64], 8, 3);
+        px(15, 8, [255, 113, 72], 7, 3);
+        px(21, 3, [255, 214, 92], 2, 2);
+      }),
     };
+
+    const fractionProjectile = createOutlinedSprite(16, 16, (px) => {
+      px(4, 3, [126, 245, 210], 8, 10);
+      px(6, 5, [236, 255, 250], 4, 4);
+    });
+    const makeFractionLabel = (label) => createOutlinedSprite(34, 20, (px, ctx) => {
+      px(1, 6, [126, 245, 210], 8, 8);
+      px(3, 8, [236, 255, 250], 3, 3);
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#18122a';
+      ctx.fillStyle = '#fff4d0';
+      ctx.strokeText(label, 12, 10);
+      ctx.fillText(label, 12, 10);
+    });
+    const fractionHalfProjectile = makeFractionLabel('1/2');
+    const fractionQuarterProjectile = makeFractionLabel('1/4');
+    const waterStreamCanvas = createOutlinedSprite(24, 12, (px) => {
+      px(1, 5, [178, 248, 255], 5, 2);
+      px(6, 4, [85, 217, 255], 13, 4);
+      px(18, 3, [178, 248, 255], 5, 2);
+    });
+    const egretArrowCanvas = createOutlinedSprite(20, 14, (px) => {
+      px(3, 6, [244, 255, 240], 10, 3);
+      px(6, 3, [244, 255, 240], 5, 3);
+      px(7, 9, [215, 239, 230], 5, 3);
+      px(13, 7, [255, 226, 120], 5, 1);
+    });
+    const firecrackerCanvas = createOutlinedSprite(16, 16, (px) => {
+      px(4, 4, [214, 55, 64], 7, 9);
+      px(6, 2, [255, 214, 92], 3, 2);
+      px(4, 12, [255, 113, 72], 7, 2);
+    });
+    const ricePickupCanvas = createOutlinedSprite(16, 16, (px) => {
+      px(7, 2, [133, 190, 76], 2, 12);
+      px(3, 4, [255, 238, 156], 4, 2);
+      px(9, 6, [255, 238, 156], 4, 2);
+      px(3, 9, [255, 238, 156], 4, 2);
+      px(9, 11, [255, 238, 156], 4, 2);
+    });
 
     const textures = {
       ground: createGroundTexture(),
@@ -565,6 +645,13 @@
       vortex: makeCanvasTexture(vortexCanvas),
       fire: makeCanvasTexture(fireCanvas),
       sonic: makeCanvasTexture(sonicCanvas),
+      fraction: makeCanvasTexture(fractionProjectile),
+      fraction_half: makeCanvasTexture(fractionHalfProjectile),
+      fraction_quarter: makeCanvasTexture(fractionQuarterProjectile),
+      water: makeCanvasTexture(waterStreamCanvas),
+      egret: makeCanvasTexture(egretArrowCanvas),
+      firecracker: makeCanvasTexture(firecrackerCanvas),
+      rice_pickup: makeCanvasTexture(ricePickupCanvas),
       gem: makeCanvasTexture(gemCanvas),
       coin: makeCanvasTexture(coinCanvas),
     };
@@ -601,6 +688,23 @@
         px(3, 3, [172, 120, 240], 8, 8);
         px(5, 5, [24, 18, 42], 4, 4);
         px(6, 6, [224, 190, 255], 2, 2);
+      }),
+      water: createOutlinedSprite(14, 14, (px) => {
+        px(6, 2, [178, 248, 255], 3, 4);
+        px(4, 6, [85, 217, 255], 7, 5);
+        px(3, 10, [178, 248, 255], 9, 2);
+      }),
+      rice: createOutlinedSprite(14, 14, (px) => {
+        px(6, 2, [133, 190, 76], 2, 10);
+        px(3, 3, [255, 238, 156], 3, 2);
+        px(8, 5, [255, 238, 156], 3, 2);
+        px(3, 7, [255, 238, 156], 3, 2);
+        px(8, 9, [255, 238, 156], 3, 2);
+      }),
+      solar: createOutlinedSprite(14, 14, (px) => {
+        px(6, 2, [255, 246, 184], 2, 10);
+        px(2, 6, [255, 226, 120], 10, 2);
+        px(4, 4, [255, 246, 184], 6, 6);
       }),
     };
 
@@ -649,11 +753,22 @@
       textures[`gear_${key}`] = makeCanvasTexture(c);
     }
 
+    // 三關主題化地面、障礙物、裝飾與特效貼圖（stage-art.js；缺檔時 renderer 退回舊版單一地面）
+    if (PGS.StageArt && typeof PGS.StageArt.build === 'function') {
+      textures.stage = PGS.StageArt.build();
+    }
+
     return { textures, iconDataUrls, runeDataUrls, gearDataUrls };
   }
 
   PGS.PixelArt = {
     rampOf,
     buildAllAssets,
+    // 提供給 stage-art.js 沿用的像素工具
+    BAYER,
+    clamp,
+    hash2d,
+    makeCanvasTexture,
+    createOutlinedSprite,
   };
 })(window);

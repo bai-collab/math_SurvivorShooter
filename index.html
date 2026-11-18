@@ -7,31 +7,39 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js" defer></script>
   <script src="src/pixel-art.js" defer></script>
+  <script src="src/stage-art.js" defer></script>
   <script src="src/audio.js" defer></script>
   <script src="src/gamepad.js" defer></script>
   <script src="src/runes.js" defer></script>
   <script src="src/gear.js" defer></script>
+  <script src="src/math-quest.js" defer></script>
   <script src="src/weapons.js" defer></script>
   <script src="src/renderer.js" defer></script>
   <script src="src/game.js" defer></script>
   <script src="src/beishewei-map-data.js" defer></script>
+  <script src="src/explore-quest.js" defer></script>
   <script src="src/explore.js" defer></script>
   <script src="src/ui.js" defer></script>
   <script src="src/main.js" defer></script>
 </head>
 <body>
   <div id="game-container"></div>
+  <div id="vignette" class="vignette" aria-hidden="true"></div>
 
   <!-- 遊戲內 HUD -->
   <div id="hud" class="hidden">
     <div class="hud-top">
       <div class="xp-wrap">
+        <div id="xp-ghost" class="xp-ghost"></div>
         <div id="xp-fill" class="xp-fill"></div>
+        <div class="bar-ticks" aria-hidden="true"></div>
         <div id="level-text" class="level-badge">LV 1</div>
       </div>
       <div class="hud-row">
         <div class="hp-wrap">
+          <div id="hp-ghost" class="hp-ghost"></div>
           <div id="hp-fill" class="hp-fill"></div>
+          <div class="bar-ticks" aria-hidden="true"></div>
           <div id="hp-text" class="hp-text">HP 100 / 100</div>
         </div>
         <div class="hud-stats">
@@ -42,6 +50,7 @@
           <button id="pause-btn" class="mute-btn" type="button">暫停</button>
         </div>
       </div>
+      <div id="math-buff-hud" class="math-buff-hud hidden" aria-live="polite">⚡ 加速中 <span id="math-buff-time">0</span> 秒</div>
     </div>
 
     <div class="hud-bottom">
@@ -52,10 +61,32 @@
     </div>
   </div>
 
+  <div id="math-quiz-banner" class="math-quiz-banner hidden" aria-live="polite">
+    <div class="math-banner-heading"><span>算式閘門</span><span id="math-quiz-time"></span></div>
+    <div id="math-quiz-prompt" class="math-banner-prompt"></div>
+    <div id="math-quiz-feedback" class="math-banner-feedback"></div>
+  </div>
+  <div id="math-harvest-hud" class="math-harvest-hud hidden" aria-live="polite">
+    <strong>🌾 稻穀豐收</strong>
+    <span id="math-harvest-rule"></span>
+    <span id="math-harvest-count">0 / 5</span>
+  </div>
+  <div id="math-toast" class="math-toast hidden" aria-live="polite"></div>
+
+  <div id="math-action-overlay" class="overlay hidden" aria-live="polite">
+    <div class="panel narrow math-action-panel">
+      <h2 id="math-action-title">算式閘門</h2>
+      <p id="math-action-prompt" class="math-action-prompt"></p>
+      <div id="math-action-message" class="math-action-message"></div>
+      <div id="math-choice-list" class="math-choice-list"></div>
+    </div>
+  </div>
+
   <!-- 開局選單 -->
   <div id="menu-overlay" class="overlay">
     <div class="panel">
-      <h1>像素槍戰倖存者</h1>
+      <h1 class="sr-only">數學倖存者・稻香北園</h1>
+      <canvas id="menu-logo" class="menu-logo" width="240" height="44" aria-hidden="true"></canvas>
       <p class="subtitle">全自動瞄準射擊 ｜ 鍵盤 WASD / 遊戲手把（搖桿移動、十字鍵+A選擇、LB/RB切分類）</p>
       <div class="meta-bar">
         <span id="meta-gold">金幣：0</span>
@@ -75,7 +106,38 @@
       <h3>局外改造商店</h3>
       <div id="upgrade-list" class="upgrade-list"></div>
 
+      <h3>數學設定</h3>
+      <div class="math-settings-card">
+        <label>年級段
+          <select id="math-band-setting">
+            <option value="low">低年級（1–2 年級）</option>
+            <option value="middle">中年級（3–4 年級）</option>
+            <option value="high">高年級（5–6 年級）</option>
+          </select>
+        </label>
+        <label>題目頻率
+          <select id="math-frequency-setting">
+            <option value="low">少</option>
+            <option value="standard">標準</option>
+            <option value="high">多</option>
+          </select>
+        </label>
+        <label class="math-pause-setting">
+          <input id="math-pause-setting" type="checkbox" />
+          作答時暫停（低年級預設開啟）
+        </label>
+        <label class="math-pause-setting">
+          <input id="damage-numbers-setting" type="checkbox" checked />
+          顯示傷害數字（爆擊會放大變金色）
+        </label>
+      </div>
+      <details class="math-growth-details">
+        <summary>數學成長紀錄</summary>
+        <div id="math-growth-panel" class="math-growth-panel"></div>
+      </details>
+
       <button id="open-explore-btn" class="secondary-btn" type="button" style="margin-bottom:10px">嘉義北社尾社區探索（解鎖武器與符文）</button>
+      <p id="community-title" class="community-title" aria-live="polite"></p>
       <button id="open-gear-btn" class="secondary-btn" type="button" style="margin-bottom:10px">裝備 / 武器 / 符文 算式工坊</button>
       <button id="start-btn" class="primary-btn" type="button">開始生存</button>
     </div>
@@ -155,15 +217,18 @@
       <div class="explore-header">
         <div>
           <h2 style="margin:0">嘉義市西區・北社尾社區探索</h2>
-          <p class="subtitle" style="margin:4px 0 0">自由散步不扣次數；走近據點玩小遊戲，即可解鎖 14 把武器與 4 種符文！</p>
+          <p class="subtitle" style="margin:4px 0 0">自由散步不扣次數；18 個據點可練習數學、解鎖 20 把武器與 7 種符文並收集社區圖鑑。</p>
         </div>
-        <button id="close-explore-btn" class="secondary-btn" type="button" style="width:auto;padding:8px 14px">返回選單</button>
+        <div class="explore-header-actions">
+          <button id="explore-atlas-btn" class="secondary-btn" type="button">社區圖鑑</button>
+          <button id="close-explore-btn" class="secondary-btn" type="button" style="width:auto;padding:8px 14px">返回選單</button>
+        </div>
       </div>
 
       <div class="meta-bar" style="margin-bottom:10px">
         <span id="explore-tickets">免費探索券：1 次</span>
         <span id="explore-gold">金幣：0</span>
-        <span id="explore-progress">社區解鎖進度：0 / 18</span>
+        <span id="explore-progress">社區解鎖進度：0 / 27</span>
       </div>
 
       <div class="explore-body">
@@ -195,6 +260,19 @@
         <p id="explore-mg-hint" class="subtitle"></p>
         <div id="explore-mg-stage"></div>
         <button id="explore-mg-cancel-btn" class="secondary-btn" type="button" style="margin-top:12px">先離開回到地圖</button>
+      </div>
+    </div>
+
+    <div id="explore-atlas-modal" class="overlay hidden atlas-overlay">
+      <div class="panel atlas-panel">
+        <div class="atlas-header">
+          <div>
+            <h2 style="margin:0">北社尾社區圖鑑</h2>
+            <p id="explore-atlas-progress" class="subtitle" style="margin:4px 0 0">已收集 0 / 18 張</p>
+          </div>
+          <button id="explore-atlas-close-btn" class="secondary-btn" type="button" style="width:auto;padding:8px 14px">返回探索</button>
+        </div>
+        <div id="explore-atlas-grid" class="atlas-grid"></div>
       </div>
     </div>
   </div>

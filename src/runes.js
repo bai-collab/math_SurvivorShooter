@@ -76,11 +76,90 @@
         { key: 'dmgPct', label: '震波傷害', unit: '%', base: 45, min: 10 },
       ],
     },
+    water: {
+      id: 'water',
+      name: '水之符文',
+      short: '水',
+      unlockHint: '在「水資源回收中心」據點解鎖',
+      colorHex: 0x55d9ff,
+      cssColor: '#55d9ff',
+      desc: '命中留下減速水窪；雷電打中水窪內的怪物時會造成額外傷害。',
+      cardStats: [
+        { key: 'puddleSec', label: '水窪秒數', unit: 's', base: 3, min: 1, max: 8 },
+        { key: 'slowPct', label: '水窪減速', unit: '%', base: 35, min: 10, max: 75, round: true },
+      ],
+    },
+    rice: {
+      id: 'rice',
+      name: '稻穗符文',
+      short: '稻',
+      unlockHint: '在「校內一畝田」據點解鎖',
+      colorHex: 0xb9e96f,
+      cssColor: '#b9e96f',
+      desc: '擊倒受此武器命中的怪物時，有機會掉落稻穀；撿起後回血並獲得少量經驗。',
+      cardStats: [
+        { key: 'dropChance', label: '稻穀掉落', unit: '%', base: 22, min: 1, max: 80, round: true },
+        { key: 'heal', label: '回血量', unit: '', base: 12, min: 1, max: 80, round: true },
+      ],
+    },
+    solar: {
+      id: 'solar',
+      name: '光電符文',
+      short: '電',
+      unlockHint: '在「屋頂太陽光電」據點解鎖',
+      colorHex: 0xffe278,
+      cssColor: '#ffe278',
+      desc: '每次命中累積光能；能量滿 100 時，以玩家為中心釋放光電脈衝。',
+      cardStats: [
+        { key: 'energyPerHit', label: '每次命中能量', unit: '', base: 20, min: 5, max: 60, round: true },
+        { key: 'pulseDamage', label: '脈衝傷害', unit: '', base: 42, min: 5, max: 200, round: true },
+      ],
+    },
   };
+
+  const RESONANCES = [
+    {
+      id: 'overload',
+      runes: ['fire', 'thunder'],
+      name: '過載爆炸',
+      desc: '火與雷同時命中時引爆小範圍震波。',
+    },
+    {
+      id: 'frozen-water',
+      runes: ['ice', 'water'],
+      name: '急凍水窪',
+      desc: '水窪結成冰面；怪物踏入時會滑退並短暫凍結。',
+    },
+    {
+      id: 'conductive-net',
+      runes: ['thunder', 'water'],
+      name: '導電網',
+      desc: '雷電沿水窪擴散，額外跳躍電擊附近怪物。',
+    },
+    {
+      id: 'noon-sun',
+      runes: ['light', 'solar'],
+      name: '正午烈陽',
+      desc: '光電脈衝範圍擴大，並讓受擊怪物短暫致盲。',
+    },
+    {
+      id: 'harvest-return',
+      runes: ['rice', 'vampire'],
+      name: '豐收回春',
+      desc: '稻穀更容易掉落，撿起時獲得更多回復。',
+    },
+  ];
+
+  function getResonances(runeIds) {
+    const owned = new Set(runeIds || []);
+    return RESONANCES.filter((resonance) => resonance.runes.every((id) => owned.has(id)));
+  }
 
   PGS.Runes = {
     MAX_PER_WEAPON: 3,
     DEFS: RUNE_DEFS,
     ALL_IDS: Object.keys(RUNE_DEFS),
+    RESONANCES,
+    getResonances,
   };
 })(window);

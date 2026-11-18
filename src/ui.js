@@ -10,6 +10,65 @@
     return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
   }
 
+  function writeSaveForUI(game) {
+    try {
+      global.localStorage.setItem('pgs_save_v1', JSON.stringify(game.save));
+    } catch (_) {}
+  }
+
+  // 主選單標題：先畫在 240x44 的小畫布，再由 CSS 以 pixelated 放大，保持像素邊緣
+  function drawRiceEar(ctx, x, y, flip) {
+    const px = (dx, dy, w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(flip ? x - dx - w + 1 : x + dx, y + dy, w, h);
+    };
+    px(5, 14, 2, 26, '#6ea044');
+    for (let k = 0; k < 6; k++) {
+      px(2, 4 + k * 2, 3, 2, k % 2 ? '#ffe49a' : '#ffd058');
+      px(7, 5 + k * 2, 3, 2, k % 2 ? '#ffd058' : '#ffe49a');
+    }
+    px(5, 0, 2, 4, '#fff2c6');
+    for (let i = 0; i < 5; i++) px(7 + i * 2, 30 - i * 2, 3, 2, '#8fc25a');
+  }
+
+  function drawMenuLogo(canvas) {
+    if (!canvas || !canvas.getContext) return;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 夜空底與田埂線
+    ctx.fillStyle = '#18122a';
+    ctx.fillRect(0, 0, 240, 44);
+    for (let x = 0; x < 240; x += 6) {
+      const h = 3 + ((x * 7) % 5);
+      ctx.fillStyle = x % 12 ? '#2c4a30' : '#3c6a3a';
+      ctx.fillRect(x, 44 - h, 4, h);
+    }
+    ctx.fillStyle = '#ffd058';
+    ctx.fillRect(0, 0, 240, 2);
+    ctx.fillRect(0, 42, 240, 2);
+    drawRiceEar(ctx, 6, 2, false);
+    drawRiceEar(ctx, 233, 2, true);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 18px "Microsoft JhengHei","Noto Sans TC",sans-serif';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#0e0a1a';
+    ctx.strokeText('數學倖存者・稻香北園', 120, 19, 188);
+    const grad = ctx.createLinearGradient(0, 9, 0, 29);
+    grad.addColorStop(0, '#fff2c6');
+    grad.addColorStop(0.55, '#ffd058');
+    grad.addColorStop(1, '#f0902c');
+    ctx.fillStyle = grad;
+    ctx.fillText('數學倖存者・稻香北園', 120, 19, 188);
+    ctx.font = 'bold 8px monospace';
+    ctx.lineWidth = 3;
+    ctx.strokeText('MATH  SURVIVOR  SHOOTER', 120, 35);
+    ctx.fillStyle = '#4ce0c0';
+    ctx.fillText('MATH  SURVIVOR  SHOOTER', 120, 35);
+  }
+
   class GameUI {
     constructor(iconDataUrls, runeDataUrls, gearDataUrls) {
       this.iconDataUrls = iconDataUrls;
@@ -26,6 +85,9 @@
       this.els = {
         hud: document.getElementById('hud'),
         hpFill: document.getElementById('hp-fill'),
+        hpGhost: document.getElementById('hp-ghost'),
+        xpGhost: document.getElementById('xp-ghost'),
+        menuLogo: document.getElementById('menu-logo'),
         hpText: document.getElementById('hp-text'),
         xpFill: document.getElementById('xp-fill'),
         levelText: document.getElementById('level-text'),
@@ -35,6 +97,21 @@
         weaponBar: document.getElementById('weapon-bar'),
         pauseBtn: document.getElementById('pause-btn'),
         muteBtn: document.getElementById('mute-btn'),
+        mathQuizBanner: document.getElementById('math-quiz-banner'),
+        mathQuizTime: document.getElementById('math-quiz-time'),
+        mathQuizPrompt: document.getElementById('math-quiz-prompt'),
+        mathQuizFeedback: document.getElementById('math-quiz-feedback'),
+        mathBuffHud: document.getElementById('math-buff-hud'),
+        mathBuffTime: document.getElementById('math-buff-time'),
+        mathHarvestHud: document.getElementById('math-harvest-hud'),
+        mathHarvestRule: document.getElementById('math-harvest-rule'),
+        mathHarvestCount: document.getElementById('math-harvest-count'),
+        mathToast: document.getElementById('math-toast'),
+        mathActionOverlay: document.getElementById('math-action-overlay'),
+        mathActionTitle: document.getElementById('math-action-title'),
+        mathActionPrompt: document.getElementById('math-action-prompt'),
+        mathActionMessage: document.getElementById('math-action-message'),
+        mathChoiceList: document.getElementById('math-choice-list'),
 
         menuOverlay: document.getElementById('menu-overlay'),
         stageGrid: document.getElementById('stage-grid'),
@@ -44,7 +121,13 @@
         metaGold: document.getElementById('meta-gold'),
         metaBest: document.getElementById('meta-best'),
         upgradeList: document.getElementById('upgrade-list'),
+        mathBandSetting: document.getElementById('math-band-setting'),
+        mathFrequencySetting: document.getElementById('math-frequency-setting'),
+        mathPauseSetting: document.getElementById('math-pause-setting'),
+        damageNumbersSetting: document.getElementById('damage-numbers-setting'),
+        mathGrowthPanel: document.getElementById('math-growth-panel'),
         openExploreBtn: document.getElementById('open-explore-btn'),
+        communityTitle: document.getElementById('community-title'),
         openGearBtn: document.getElementById('open-gear-btn'),
         startBtn: document.getElementById('start-btn'),
 
@@ -87,6 +170,40 @@
 
     bindGame(game) {
       this.game = game;
+      drawMenuLogo(this.els.menuLogo);
+
+      if (this.els.mathBandSetting) {
+        this.els.mathBandSetting.addEventListener('change', () => {
+          const settings = game.save.mathSettings;
+          settings.band = this.els.mathBandSetting.value;
+          if (!settings.pauseTouched) settings.pauseOnAnswer = settings.band === 'low';
+          writeSaveForUI(game);
+          this.renderMathSettings(game);
+        });
+      }
+      if (this.els.mathFrequencySetting) {
+        this.els.mathFrequencySetting.addEventListener('change', () => {
+          game.save.mathSettings.frequency = this.els.mathFrequencySetting.value;
+          writeSaveForUI(game);
+          this.renderMathSettings(game);
+        });
+      }
+      if (this.els.mathPauseSetting) {
+        this.els.mathPauseSetting.addEventListener('change', () => {
+          game.save.mathSettings.pauseOnAnswer = this.els.mathPauseSetting.checked;
+          game.save.mathSettings.pauseTouched = true;
+          writeSaveForUI(game);
+          this.renderMathSettings(game);
+        });
+      }
+
+      if (this.els.damageNumbersSetting) {
+        this.els.damageNumbersSetting.addEventListener('change', () => {
+          game.showDamageNumbers = this.els.damageNumbersSetting.checked;
+          game.save.showDamageNumbers = game.showDamageNumbers;
+          writeSaveForUI(game);
+        });
+      }
 
       this.els.muteBtn.addEventListener('click', () => {
         const muted = game.audio.toggleMute();
@@ -216,7 +333,12 @@
       if (this.els.openExploreBtn) {
         const free = game.save.freeExplores || 0;
         const unlockedCount = (game.save.unlockedWeapons.length - 4) + (game.save.unlockedRunes.length - 2);
-        this.els.openExploreBtn.textContent = `嘉義北社尾社區探索（已解鎖 ${Math.max(0, unlockedCount)}/18 ｜ 免費券 ${free} 次）`;
+        const totalUnlocks = (PGS.Weapons.ALL_IDS.length - 4) + (PGS.Runes.ALL_IDS.length - 2);
+        this.els.openExploreBtn.textContent = `嘉義北社尾社區探索（已解鎖 ${Math.max(0, unlockedCount)}/${totalUnlocks} ｜ 免費券 ${free} 次）`;
+      }
+      if (this.els.communityTitle) {
+        const title = game.save.communityAtlas?.title || '';
+        this.els.communityTitle.textContent = title ? `社區圖鑑稱號：${title}` : '社區圖鑑稱號：尚未取得';
       }
 
       // 關卡選擇
@@ -255,7 +377,7 @@
         this.els.catTabs.appendChild(tab);
       }
 
-      // 18 把初始武器選擇卡（未解鎖者禁止選取）
+      // 初始武器選擇卡（未解鎖者禁止選取）
       this.els.starterGrid.innerHTML = '';
       for (const id of PGS.Weapons.ALL_IDS) {
         const def = PGS.Weapons.DEFS[id];
@@ -271,7 +393,7 @@
             <img src="${this.iconDataUrls[id]}" alt="${def.name}" class="pixel-icon" />
             <div>
               <div class="starter-name">${def.name}${unlocked ? '' : ' 🔒'}</div>
-              <div class="starter-tag">${unlocked ? def.tag : '未解鎖（社區探索解鎖）'}</div>
+            <div class="starter-tag">${unlocked ? def.tag : `未解鎖｜${def.unlockHint || '社區探索新據點'}`}</div>
             </div>
           </div>
           <div class="starter-desc">${def.desc}</div>
@@ -305,7 +427,7 @@
         btn.disabled = !unlocked;
         btn.className = `rune-btn${game.selectedStarterRune === rId && unlocked ? ' selected' : ''}`;
         if (!unlocked) btn.style.opacity = '0.48';
-        btn.title = unlocked ? rDef.desc : `${rDef.desc}（未解鎖：社區探索解鎖）`;
+        btn.title = unlocked ? rDef.desc : `${rDef.desc}（未解鎖：${rDef.unlockHint || '社區探索解鎖'}）`;
         btn.innerHTML = `
           <img src="${this.runeDataUrls[rId]}" alt="${rDef.name}" class="rune-mini-icon" />
           <span>${rDef.short}｜${rDef.name.replace('之符文', '').replace('符文', '')}${unlocked ? '' : ' 🔒'}</span>
@@ -343,6 +465,39 @@
         });
         this.els.upgradeList.appendChild(btn);
       }
+      this.renderMathSettings(game);
+    }
+
+    renderMathSettings(game) {
+      const settings = game.save.mathSettings;
+      if (this.els.mathBandSetting) this.els.mathBandSetting.value = settings.band;
+      if (this.els.mathFrequencySetting) this.els.mathFrequencySetting.value = settings.frequency;
+      if (this.els.mathPauseSetting) this.els.mathPauseSetting.checked = settings.pauseOnAnswer;
+      if (this.els.damageNumbersSetting) this.els.damageNumbersSetting.checked = game.showDamageNumbers !== false;
+      this.updateMathGrowth(game);
+    }
+
+    updateMathGrowth(game) {
+      const target = this.els.mathGrowthPanel;
+      if (!target || !game.save.mathStats) return;
+      const stats = game.save.mathStats;
+      const topics = Object.entries(stats.byTopic || {})
+        .filter(([, row]) => row && Number(row.attempts) > 0)
+        .sort((a, b) => {
+          const aRate = Number(a[1].firstTryCorrect || 0) / Math.max(1, Number(a[1].questions || 0));
+          const bRate = Number(b[1].firstTryCorrect || 0) / Math.max(1, Number(b[1].questions || 0));
+          return aRate - bRate || Number(b[1].attempts) - Number(a[1].attempts);
+        });
+      if (!topics.length) {
+        target.textContent = '完成戰鬥題目後，這裡會記下各題型的作答次數。';
+        return;
+      }
+      const labels = topics.slice(0, 4).map(([id]) => PGS.MathQuest.TOPIC_LABELS[id] || id);
+      target.innerHTML = `
+        <div>累計題數：${Number(stats.questions) || 0}；第一次答對：${Number(stats.firstTryCorrect) || 0}</div>
+        <ul>${topics.map(([id, row]) => `<li>${PGS.MathQuest.TOPIC_LABELS[id] || id}：作答 ${Number(row.attempts) || 0} 次</li>`).join('')}</ul>
+        <p>可以再練習：${labels.join('、')}</p>
+      `;
     }
 
     renderGearWorkshop(game) {
@@ -703,31 +858,58 @@
       const xpPct = Math.max(0, Math.min(100, (p.xp / p.nextXp) * 100));
 
       this.els.hpFill.style.width = `${hpPct}%`;
+      this.els.hpGhost.style.width = `${hpPct}%`;
       this.els.hpText.textContent = `HP ${Math.ceil(p.hp)} / ${p.maxHp}`;
       this.els.xpFill.style.width = `${xpPct}%`;
+      this.els.xpGhost.style.width = `${xpPct}%`;
       this.els.levelText.textContent = `LV ${p.level}`;
       this.els.timeText.textContent = formatTime(game.elapsed);
       this.els.killsText.textContent = `擊殺 ${game.kills}`;
       this.els.goldText.textContent = `金幣 +${game.runGold}`;
 
-      // 戰鬥中極簡武器圖示列（只顯示槍枝圖案＋符文小標籤）
-      this.els.weaponBar.innerHTML = game.weapons
+      // 答題獎勵「加速」：顯示剩餘秒數（沒有加速時隱藏）
+      const buffSeconds = game.mathBuffTimer > 0 ? Math.ceil(game.mathBuffTimer) : 0;
+      if (buffSeconds !== this._buffSeconds) {
+        this._buffSeconds = buffSeconds;
+        if (this.els.mathBuffHud) {
+          this.els.mathBuffHud.classList.toggle('hidden', buffSeconds <= 0);
+          if (buffSeconds > 0) this.els.mathBuffTime.textContent = String(buffSeconds);
+        }
+      }
+
+      // 戰鬥中極簡武器圖示列（只顯示槍枝圖案＋符文小標籤）。
+      // 先組好字串，內容真的改變才寫入 DOM：每幀重寫會讓共鳴標籤的 title 提示永遠出不來，也浪費效能。
+      const weaponBarHtml = game.weapons
         .map((w) => {
           const def = w.def;
+          const primeInfo = w.id === 'prime_rifle'
+            ? `<div class="w-sub">序 ${w.shotCount || 0}｜下個質數 ${PGS.Weapons.nextPrimeAfter(w.shotCount || 0)}</div>`
+            : w.id === 'solar_laser'
+              ? `<div class="w-sub">蓄能 ${Math.min(3, Math.floor(w.solarCharge || 0))}/3</div>`
+              : '';
           const runeHtml = (w.runes || [])
             .map((rId) => {
               const rDef = PGS.Runes.DEFS[rId];
               return `<span class="rune-pill" style="background:${rDef.cssColor}">${rDef.short}</span>`;
             })
             .join('');
+          const resonanceHtml = (game.getWeaponResonances ? game.getWeaponResonances(w) : [])
+            .map((resonance) => `<div class="resonance-pill" title="${resonance.name}：${resonance.desc}">${resonance.name}</div>`)
+            .join('');
           return `
             <div class="w-slot" title="${def.name} Lv.${w.level}">
               <img src="${this.iconDataUrls[w.id]}" alt="${def.name}" class="pixel-icon-sm" />
               ${runeHtml ? `<div class="w-runes">${runeHtml}</div>` : ''}
+              ${primeInfo}
+              ${resonanceHtml}
             </div>
           `;
         })
         .join('');
+      if (weaponBarHtml !== this._weaponBarHtml) {
+        this._weaponBarHtml = weaponBarHtml;
+        this.els.weaponBar.innerHTML = weaponBarHtml;
+      }
     }
 
     showLevelUp(choices, onPick) {
@@ -790,6 +972,17 @@
             return `<span class="rune-pill" style="background:${rd.cssColor}">${rd.short}</span>`;
           })
           .join('');
+        const currentResonances = this.game && this.game.getWeaponResonances ? this.game.getWeaponResonances(w) : [];
+        const previewResonances = PGS.Runes.getResonances([...w.runes, runeId])
+          .filter((resonance) => !currentResonances.some((current) => current.id === resonance.id));
+        const resonanceNotes = [...currentResonances, ...previewResonances]
+          .map((resonance, index) => `
+            <div class="resonance-note">
+              <strong>${index < currentResonances.length ? '已啟動' : '鑲嵌後觸發'}：${resonance.name}</strong>
+              <span>${resonance.desc}</span>
+            </div>
+          `)
+          .join('');
 
         const card = document.createElement('button');
         card.type = 'button';
@@ -800,6 +993,7 @@
           <div class="choice-body">
             <div class="choice-title">${w.def.name} Lv.${w.level} (${w.runes.length}/3)</div>
             <div class="w-runes">${runeBadges || '<span class="choice-desc">尚未鑲嵌符文</span>'}</div>
+            ${resonanceNotes}
             ${hasRune ? '<div class="choice-tag">已鑲嵌此符文</div>' : isFull ? '<div class="choice-tag">符文槽已滿 (3/3)</div>' : ''}
           </div>
         `;
@@ -817,6 +1011,137 @@
       this.els.runeOverlay.classList.add('hidden');
     }
 
+    renderMathChoices(question, onSelect, disabledIndex = -1) {
+      const list = this.els.mathChoiceList;
+      list.innerHTML = '';
+      question.choices.forEach((choice, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'math-answer-option';
+        button.disabled = index === disabledIndex;
+        button.innerHTML = `<span class="math-choice-key">${index + 1}.</span><span></span>`;
+        button.querySelector('span:last-child').textContent = choice;
+        button.addEventListener('click', () => onSelect(index));
+        list.appendChild(button);
+      });
+    }
+
+    showMathQuestion(question, paused, timeLeft) {
+      this.els.mathQuizPrompt.textContent = question.prompt;
+      this.els.mathQuizFeedback.textContent = '';
+      this.els.mathQuizBanner.classList.remove('hidden');
+      this.updateMathTimer(timeLeft);
+      if (paused) {
+        this.els.mathActionTitle.textContent = '算式閘門：選一個答案';
+        this.els.mathActionPrompt.textContent = question.prompt;
+        this.els.mathActionMessage.textContent = '按 1–4、手把方向鍵，或點擊選答案。';
+        this.renderMathChoices(question, (index) => this.game.answerMathChoice(index));
+        this.els.mathActionOverlay.classList.remove('hidden');
+      } else {
+        this.hideMathAction();
+      }
+    }
+
+    showMathHint(hint, paused, disabledIndex) {
+      this.els.mathQuizFeedback.textContent = hint;
+      if (paused) {
+        this.els.mathActionMessage.textContent = hint;
+        const buttons = this.els.mathChoiceList.querySelectorAll('.math-answer-option');
+        if (buttons[disabledIndex]) buttons[disabledIndex].disabled = true;
+      }
+    }
+
+    showMathExplanation(question, paused, reason) {
+      const answer = question.choices[question.answerIndex];
+      const lead = reason === 'time' ? '時間到了。' : '再試一次後，來看看解法。';
+      const message = `${lead}正確答案是「${answer}」。${question.explanation}`;
+      this.els.mathQuizFeedback.textContent = message;
+      this.els.mathQuizTime.textContent = '解說 3 秒';
+      if (paused) {
+        this.els.mathActionTitle.textContent = '看解說，再繼續';
+        this.els.mathActionPrompt.textContent = question.prompt;
+        this.els.mathActionMessage.textContent = message;
+        this.els.mathChoiceList.innerHTML = '';
+        this.els.mathActionOverlay.classList.remove('hidden');
+      }
+    }
+
+    showMathReward(question) {
+      this.els.mathQuizPrompt.textContent = question.prompt;
+      this.els.mathQuizFeedback.textContent = `答對了！${question.explanation}`;
+      this.els.mathActionTitle.textContent = '答對了！選一份獎勵';
+      this.els.mathActionPrompt.textContent = question.prompt;
+      this.els.mathActionMessage.textContent = `正確答案：${question.choices[question.answerIndex]}。${question.explanation}`;
+      this.els.mathChoiceList.innerHTML = '';
+      const rewards = [
+        ['恢復生命', '回復最大生命值的 30%'],
+        ['收下金幣', '本局金幣 +10'],
+        ['加速 20 秒', '攻速與移動速度提升 20%'],
+      ];
+      rewards.forEach(([title, description], index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'math-answer-option';
+        button.innerHTML = `<span class="math-choice-key">${index + 1}.</span><strong></strong><br><small></small>`;
+        button.querySelector('strong').textContent = title;
+        button.querySelector('small').textContent = description;
+        button.addEventListener('click', () => this.game.chooseMathReward(index));
+        this.els.mathChoiceList.appendChild(button);
+      });
+      this.els.mathActionOverlay.classList.remove('hidden');
+    }
+
+    updateMathTimer(seconds) {
+      this.els.mathQuizTime.textContent = `剩餘 ${Math.ceil(seconds)} 秒`;
+    }
+
+    hideMathAction() {
+      this.els.mathActionOverlay.classList.add('hidden');
+      this.els.mathChoiceList.innerHTML = '';
+    }
+
+    hideMathBanner() {
+      this.els.mathQuizBanner.classList.add('hidden');
+      this.els.mathQuizFeedback.textContent = '';
+      this.els.mathQuizTime.textContent = '';
+    }
+
+    showHarvestTask(task) {
+      this.els.mathHarvestRule.textContent = `${task.rule.label}｜限時 25 秒`;
+      this.updateHarvestTask(task);
+      this.els.mathHarvestHud.classList.remove('hidden');
+    }
+
+    updateHarvestTask(task) {
+      if (!task || !task.rule) return;
+      this.els.mathHarvestRule.textContent = `${task.rule.label}｜剩 ${Math.ceil(task.timer)} 秒`;
+      this.els.mathHarvestCount.textContent = `${task.collected} / 5`;
+    }
+
+    hideHarvestTask() {
+      this.els.mathHarvestHud.classList.add('hidden');
+    }
+
+    showMathToast(message) {
+      if (!this.els.mathToast) return;
+      global.clearTimeout(this.mathToastTimer);
+      this.els.mathToast.textContent = message;
+      this.els.mathToast.classList.remove('hidden');
+      this.mathToastTimer = global.setTimeout(() => this.els.mathToast.classList.add('hidden'), 2600);
+    }
+
+    renderMathRunSummary(game) {
+      const topics = Object.values(game.mathRun.topics || {});
+      const topicRows = topics.map((topic) => `<li>${topic.label}：作答 ${topic.attempts} 次、第一次答對 ${topic.firstTryCorrect} 題</li>`).join('');
+      const mistakes = game.mathRun.mistakes || [];
+      const mistakeRows = mistakes.map((item) => `<li><strong>${item.prompt}</strong><br>正確答案：${item.answer}<br>${item.explanation}</li>`).join('');
+      return `<section class="math-run-summary"><h3>本局數學紀錄</h3>
+        <div>題數：${game.mathRun.questions}；第一次答對：${game.mathRun.firstTryCorrect}</div>
+        ${topicRows ? `<ul>${topicRows}</ul>` : '<div>本局還沒有完成數學題目。</div>'}
+        ${mistakeRows ? `<h4>可以再練習</h4><ul>${mistakeRows}</ul>` : '<div>本局沒有錯題紀錄。</div>'}
+      </section>`;
+    }
+
     showGameOver(game) {
       this.els.goStats.innerHTML = `
         <div>生存時間：<strong>${formatTime(game.elapsed)}</strong></div>
@@ -825,6 +1150,7 @@
         <div>本局獲得金幣：<strong>+${game.runGold}</strong>（總計 ${game.save.gold}）</div>
         <div>社區探索券：<strong>+1 次</strong>（目前共 ${game.save.freeExplores || 0} 次）</div>
       `;
+      this.els.goStats.innerHTML += this.renderMathRunSummary(game);
       if (this.els.goExploreBtn) {
         this.els.goExploreBtn.textContent = `前往北社尾社區探索（免費 ${game.save.freeExplores || 0} 次）`;
       }
@@ -848,6 +1174,10 @@
       const terrainNames = (stage.terrains || [])
         .map((k) => PGS.Gear.TERRAINS?.[k]?.label || k)
         .join('、');
+      const activeResonances = game.getActiveResonances ? game.getActiveResonances() : [];
+      const resonanceMarkup = activeResonances.length
+        ? activeResonances.map((resonance) => `<div class="resonance-note"><strong>${resonance.name}</strong><span>${resonance.desc}</span></div>`).join('')
+        : '尚未啟動';
       this.els.pauseStats.innerHTML = `
         <div>關卡：<strong>${stage.name}</strong></div>
         <div>地形環境：<strong>${terrainNames || '無'}</strong></div>
@@ -859,6 +1189,7 @@
         <div>攻速 / 暴擊：<strong>×${p.globalRateMult.toFixed(2)} / ${critPct}%</strong></div>
         <div>減傷 / 跑速：<strong>${dmgRedPct > 0 ? '+' : ''}${dmgRedPct}% / ${p.speed.toFixed(1)}</strong></div>
         <div>當前環境狀態：<strong>${envTags.length ? envTags.join('、') : '正常'}</strong></div>
+        <div class="pause-resonances"><strong>已啟動共鳴</strong>${resonanceMarkup}</div>
       `;
 
       this.els.pauseWeapons.innerHTML = game.weapons

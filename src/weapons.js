@@ -442,6 +442,185 @@
       clusterCount: 4,
       sound: 'launcher',
     },
+    fraction_splitter: {
+      id: 'fraction_splitter',
+      category: '特殊',
+      name: '分數分裂槍',
+      tag: '逐層平分 / 1/2、1/4',
+      desc: '命中後分成兩顆一半傷害的子彈；子彈再命中會繼續分成四分之一。',
+      unlockHint: '在「校內一畝田」據點解鎖',
+      targeting: 'nearest',
+      sprite: 'fraction',
+      color: 0x7ef5d2,
+      damage: 24,
+      cooldown: 1.38,
+      range: 15,
+      speed: 21,
+      life: 0.82,
+      spread: 0.02,
+      pellets: 1,
+      pierce: 1,
+      bounces: 0,
+      knockback: 1.4,
+      fractionSplit: true,
+      splitDepth: 2,
+      cardStats: [
+        { key: 'damage', label: '基礎傷害', unit: '', base: 24, min: 2 },
+        { key: 'splitDepth', label: '分裂層數', unit: '層', base: 2, min: 1, max: 2, round: true },
+      ],
+      sound: 'pistol',
+    },
+    prime_rifle: {
+      id: 'prime_rifle',
+      category: '連射',
+      name: '質數節拍步槍',
+      tag: '逐發編號 / 質數必爆擊',
+      desc: '記錄開火序號；第 2、3、5、7、11……發必定造成強力暴擊。',
+      unlockHint: '在「彩虹階梯」據點解鎖',
+      targeting: 'nearest',
+      sprite: 'rail',
+      color: 0x75edff,
+      damage: 9,
+      cooldown: 0.19,
+      range: 16,
+      speed: 32,
+      life: 0.55,
+      spread: 0.025,
+      pellets: 1,
+      pierce: 1,
+      bounces: 0,
+      knockback: 1.2,
+      primeRifle: true,
+      primeCritMult: 1.75,
+      cardStats: [
+        { key: 'damage', label: '基礎傷害', unit: '', base: 9, min: 2 },
+        { key: 'primeCritMult', label: '質數暴擊倍率', unit: '×', base: 1.75, min: 1.1, max: 3 },
+      ],
+      sound: 'minigun',
+    },
+    canal_water_cannon: {
+      id: 'canal_water_cannon',
+      category: '散彈',
+      name: '水圳高壓水槍',
+      tag: '近距水柱 / 強擊退 / 留下水窪',
+      desc: '短距離錐形水柱持續命中並強力擊退；落點留下三秒減速水窪。',
+      unlockHint: '在「水資源回收中心」據點解鎖',
+      targeting: 'nearest',
+      sprite: 'water',
+      color: 0x65dfff,
+      damage: 6,
+      cooldown: 0.3,
+      range: 7,
+      speed: 0,
+      life: 0.52,
+      spread: 0.64,
+      pellets: 1,
+      pierce: 1,
+      bounces: 0,
+      knockback: 7.2,
+      waterCannon: true,
+      streamTick: 0.18,
+      puddleDuration: 3,
+      puddleRadius: 2.2,
+      slowPct: 40,
+      cardStats: [
+        { key: 'damage', label: '水柱單次傷害', unit: '', base: 6, min: 1 },
+        { key: 'puddleDuration', label: '水窪秒數', unit: 's', base: 3, min: 1, max: 8 },
+        { key: 'slowPct', label: '水窪減速', unit: '%', base: 40, min: 10, max: 75, round: true },
+      ],
+      sound: 'shotgun',
+    },
+    solar_laser: {
+      id: 'solar_laser',
+      category: '狙擊',
+      name: '太陽光電雷射',
+      tag: '靜止蓄能 / 長程貫穿',
+      desc: '站立蓄積最多三段能量；滿格射出長雷射，移動時也能消耗能量快速射擊。',
+      unlockHint: '在「屋頂太陽光電」據點解鎖',
+      targeting: 'highestHp',
+      sprite: 'rail',
+      color: 0xffef83,
+      damage: 38,
+      cooldown: 2.16,
+      range: 21,
+      speed: 48,
+      life: 0.45,
+      spread: 0,
+      pellets: 1,
+      pierce: 30,
+      bounces: 0,
+      knockback: 2.0,
+      stationaryCharge: true,
+      chargeInterval: 0.72,
+      maxCharge: 3,
+      chargeDamageMult: 2.25,
+      lowChargeMult: 0.45,
+      cardStats: [
+        { key: 'damage', label: '基礎傷害', unit: '', base: 38, min: 2 },
+        { key: 'chargeDamageMult', label: '滿格雷射倍率', unit: '×', base: 2.25, min: 1.2, max: 4 },
+      ],
+      sound: 'railgun',
+    },
+    egret_homing_bow: {
+      id: 'egret_homing_bow',
+      category: '特殊',
+      name: '白鷺鷥追蹤弩',
+      tag: '追蹤命中 / 回身再擊',
+      desc: '射出白鷺鷥形追蹤箭；命中後飛回玩家附近，再出擊兩次。',
+      unlockHint: '在「白鷺鷥稻田觀察」據點解鎖',
+      targeting: 'nearest',
+      sprite: 'egret',
+      color: 0xf4fff0,
+      damage: 20,
+      cooldown: 1.15,
+      range: 18,
+      speed: 18,
+      life: 4.4,
+      spread: 0,
+      pellets: 1,
+      pierce: 1,
+      bounces: 0,
+      knockback: 1.6,
+      homing: 8.5,
+      egretHoming: true,
+      returnStrikes: 2,
+      returnReach: 1.05,
+      cardStats: [
+        { key: 'damage', label: '基礎傷害', unit: '', base: 20, min: 2 },
+        { key: 'returnStrikes', label: '折返追擊', unit: '次', base: 2, min: 0, max: 2, round: true },
+      ],
+      sound: 'pistol',
+    },
+    firecracker_launcher: {
+      id: 'firecracker_launcher',
+      category: '爆破',
+      name: '廟會鞭炮連發器',
+      tag: '落點連爆 / 小幅擊退',
+      desc: '拋出鞭炮串，落點爆開後再向四周彈出四顆小鞭炮連環爆炸。',
+      unlockHint: '在「稻穀埕」據點解鎖',
+      targeting: 'densest',
+      sprite: 'firecracker',
+      color: 0xff7148,
+      damage: 30,
+      cooldown: 1.85,
+      range: 15,
+      speed: 13,
+      life: 0.9,
+      spread: 0.04,
+      pellets: 1,
+      pierce: 1,
+      bounces: 0,
+      knockback: 2.2,
+      arc: true,
+      splashRadius: 2.4,
+      clusterCount: 4,
+      firecracker: true,
+      cardStats: [
+        { key: 'damage', label: '主爆傷害', unit: '', base: 30, min: 2 },
+        { key: 'clusterCount', label: '後續鞭炮', unit: '顆', base: 4, min: 3, max: 5, round: true },
+      ],
+      sound: 'launcher',
+    },
   };
 
   function createWeaponInstance(id) {
@@ -464,6 +643,9 @@
       bonusPellets: 0,
       bonusPierce: 0,
       bonusBounces: 0,
+      shotCount: 0,
+      solarCharge: 0,
+      solarRuneEnergy: 0,
     };
   }
 
@@ -530,6 +712,7 @@
   }
 
   function getWeaponCardStats(def) {
+    if (Array.isArray(def.cardStats)) return def.cardStats;
     const slots = [];
     if (def.bounces > 0) {
       slots.push({ key: 'bounces', label: '彈跳次數', unit: '次', base: def.bounces, min: 0, max: 15, round: true });
@@ -555,6 +738,23 @@
     return slots;
   }
 
+  function isPrime(value) {
+    const n = Math.floor(value);
+    if (n < 2) return false;
+    if (n === 2) return true;
+    if (n % 2 === 0) return false;
+    for (let divisor = 3; divisor * divisor <= n; divisor += 2) {
+      if (n % divisor === 0) return false;
+    }
+    return true;
+  }
+
+  function nextPrimeAfter(value) {
+    let candidate = Math.max(2, Math.floor(value) + 1);
+    while (!isPrime(candidate)) candidate++;
+    return candidate;
+  }
+
   PGS.Weapons = {
     CATEGORIES,
     DEFS: WEAPON_DEFS,
@@ -562,5 +762,7 @@
     createInstance: createWeaponInstance,
     getCardStats: getWeaponCardStats,
     findTarget,
+    isPrime,
+    nextPrimeAfter,
   };
 })(window);

@@ -1,0 +1,9 @@
+import './math-quest.test.mjs';
+import './math-game-integration.test.mjs';
+import './weapon-balance.test.mjs';
+import './weapons-runes.test.mjs';
+import './explore-quest.test.mjs';
+import './question-quality.test.mjs';
+import './optimization-regression.test.mjs';
+import './band-curriculum.test.mjs';
+import './explore-curriculum.test.mjs';
